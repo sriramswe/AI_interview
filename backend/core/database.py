@@ -41,9 +41,9 @@ if configured_db_settings:
     engine_connect_args = {"connect_timeout": 10}
     if db_settings["DB_HOST"].lower() not in {"localhost", "127.0.0.1", "::1"}:
         engine_connect_args.update(
-    ssl_verify_cert=True,
-    ssl_verify_identity=True
-     )
+            ssl_verify_cert=True,
+            ssl_verify_identity=True,
+        )
 else:
     mysql_url = os.getenv("MYSQL_URL")
     if not mysql_url:
