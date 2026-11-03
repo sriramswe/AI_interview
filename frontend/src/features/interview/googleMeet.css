@@ -141,6 +141,28 @@
   transition: all 0.3s ease;
 }
 
+.meet-stage.coding-meet-stage {
+  display: block;
+  min-width: 0;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  scrollbar-color: #5f6368 #202124;
+  scrollbar-width: thin;
+}
+
+.coding-meet-content {
+  box-sizing: border-box;
+  min-height: 100%;
+  padding: 8px;
+}
+
+.coding-meet-content .coding-simulation {
+  margin-top: 0;
+}
+
 .meet-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;

@@ -289,11 +289,11 @@ export default function GoogleMeetInterview({
       </header>
 
       {/* Main Video & Content Area */}
-      <div className="meet-main-area">
-        <div className="meet-stage">
+      <div className={`meet-main-area ${codingMode || interview.coding_gate_required ? 'coding-mode-active' : ''}`}>
+        <div className={`meet-stage ${codingMode || interview.coding_gate_required ? 'coding-meet-stage' : ''}`}>
           {/* Coding simulation split or full grid */}
           {codingMode || interview.coding_gate_required ? (
-            <div style={{ width: '100%', height: '100%', padding: '8px' }}>
+            <div className="coding-meet-content">
               <CodingSimulation interview={interview} token={token} />
             </div>
           ) : (
