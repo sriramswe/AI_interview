@@ -17,13 +17,13 @@ The root `render.yaml` defines a Python web service rooted at `backend`. Create 
 - `UPI_ID`, `UPI_PAYEE_NAME`, and `PAYMENT_REVIEWER_EMAILS`: required to enable manual UPI payments and review. Use the merchant's verified receiving UPI ID and an inbox belonging to an authorized reviewer. Keep the receiving ID in backend environment settings, not frontend variables or source control. Configure `SUPER_ADMIN_EMAILS` for the reviewer who will approve/reject receipts.
 - `AI_PROVIDER` and the selected provider's settings: required for the project help chatbot and other AI features.
 
-For local development, create the MySQL database before starting FastAPI:
+For local development, start the MySQL container from the repository root:
 
-```sql
-CREATE DATABASE interviewai CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+```powershell
+docker compose up -d
 ```
 
-Set `MYSQL_URL` and the selected AI provider settings in `backend/.env`.
+The Compose service creates the `ai_interview_prep` database and persists its data in a Docker volume. Copy `backend/.env.example` to `backend/.env`; its `MYSQL_URL` matches the local Compose credentials. Start FastAPI after MySQL reports healthy. Stop the container with `docker compose down`; use `docker compose down -v` only when you intend to delete the local database data. Set the selected AI provider settings in `backend/.env` as well.
 
 Render generates `JWT_SECRET_KEY`. On startup, SQLAlchemy `create_all` creates missing MySQL tables; it does not modify existing tables. The backend applies the additive `gender` and `role` columns to existing `users` tables at startup. Other schema changes must be applied and verified deliberately before deploying code that depends on them. Existing PostgreSQL/Neon records are not automatically copied or converted; migrate them separately if they must be retained. Do not commit credentials or paste them into frontend `VITE_*` variables.
 
