@@ -17,6 +17,17 @@ The root `render.yaml` defines a Python web service rooted at `backend`. Create 
 - `UPI_ID`, `UPI_PAYEE_NAME`, and `PAYMENT_REVIEWER_EMAILS`: required to enable manual UPI payments and review. Use the merchant's verified receiving UPI ID and an inbox belonging to an authorized reviewer. Keep the receiving ID in backend environment settings, not frontend variables or source control. Configure `SUPER_ADMIN_EMAILS` for the reviewer who will approve/reject receipts.
 - `AI_PROVIDER` and the selected provider's settings: required for the project help chatbot and other AI features.
 
+### Production CI/CD with GitHub Actions
+
+The `Production CI/CD` workflow runs on pull requests and pushes to `master`. It compiles the backend Python modules, runs the backend test suite against a temporary GitHub Actions MySQL service, and runs the frontend Vite production build. On `master` only, it triggers the Render and Vercel production deploy hooks after both check jobs pass. TiDB remains hosted separately; CI uses its own temporary MySQL database and never connects to production data.
+
+Configure these repository secrets under GitHub → **Settings → Secrets and variables → Actions**:
+
+- `RENDER_DEPLOY_HOOK_URL`: create a production deploy hook in the Render backend service settings.
+- `VERCEL_DEPLOY_HOOK_URL`: create a production deploy hook in the Vercel project, targeting the `master` branch.
+
+Until both secrets exist, CI still runs but production deployment is explicitly skipped with a warning. After configuring the secrets, push to `master` or manually run the workflow on `master` to deploy. Turn off automatic Git-triggered deployments in both Render and Vercel so they cannot deploy a push before CI passes. Keep the deploy hooks configured for the production `master` branch. Render's existing `MYSQL_URL`, `CORS_ORIGINS`, AI/OAuth settings, and other service environment variables remain configured in Render; Vercel's `VITE_API_BASE_URL` and `VITE_GOOGLE_CLIENT_ID` remain configured in Vercel. Do not put TiDB credentials or application secrets in GitHub workflow files.
+
 For local development, start the MySQL container from the repository root:
 
 ```powershell
