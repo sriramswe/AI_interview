@@ -1,0 +1,530 @@
+import { useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
+import {
+  AlertCircle,
+  ArrowRight,
+  Award,
+  CheckCircle2,
+  ChevronRight,
+  Clipboard,
+  FileCheck,
+  FileText,
+  Loader2,
+  RefreshCw,
+  Sparkles,
+  Target,
+  TrendingUp,
+  UploadCloud,
+  XCircle,
+} from 'lucide-react'
+import { useInterviewApp } from '../../context/useInterviewApp'
+import { analyzeAtsScore } from '../../services/atsService'
+import { getApiError } from '../../services/apiClient'
+import { AppHeader } from '../dashboard/DashboardPage'
+import { DASHBOARD_PATH, LOGIN_PATH } from '../../routing/routes'
+import './ats.css'
+
+const PRESET_ROLES = [
+  {
+    title: 'Full Stack Engineer',
+    jd: 'We are seeking a Full Stack Engineer proficient in React, JavaScript/TypeScript, Python, FastAPI/Node.js, PostgreSQL, Docker, and AWS. Experience building scalable REST APIs, microservices, and modern user interfaces with CI/CD pipelines.',
+  },
+  {
+    title: 'Frontend React Developer',
+    jd: 'Looking for a Senior Frontend Developer with expertise in React, TypeScript, Next.js, Tailwind CSS, Redux/Zustand, and state management. Strong grasp of web performance optimization, responsive design, and automated testing (Jest, Cypress).',
+  },
+  {
+    title: 'Backend Python Engineer',
+    jd: 'Seeking Backend Software Engineer with in-depth knowledge of Python, FastAPI, Django, PostgreSQL, Redis, message queues, Docker, and system design. Experience designing high-throughput APIs, caching layers, and database optimization.',
+  },
+  {
+    title: 'AI / ML Engineer',
+    jd: 'Looking for an AI/ML Engineer with strong skills in Python, PyTorch, TensorFlow, LLMs, NLP, RAG architectures, LangChain, vector databases, and fine-tuning. Experience deploying AI models into production.',
+  },
+  {
+    title: 'DevOps / Cloud Engineer',
+    jd: 'Hiring a DevOps Engineer experienced with AWS/GCP, Docker, Kubernetes, Terraform, CI/CD with GitHub Actions, Linux administration, Prometheus monitoring, and infrastructure as code.',
+  },
+]
+
+export default function ATSCheckerPage() {
+  const { subscription, token } = useInterviewApp()
+  const navigate = useNavigate()
+
+  const [inputMode, setInputMode] = useState('upload') // 'upload' | 'text'
+  const [resumeFile, setResumeFile] = useState(null)
+  const [resumeText, setResumeText] = useState('')
+  const [jobDescription, setJobDescription] = useState('')
+  const [targetRole, setTargetRole] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const [result, setResult] = useState(null)
+  const [copiedKey, setCopiedKey] = useState(false)
+  const [analysesCompleted, setAnalysesCompleted] = useState(0)
+  const analysesRemaining = subscription?.resume_analyses_remaining == null
+    ? null
+    : Math.max(0, subscription.resume_analyses_remaining - analysesCompleted)
+
+  const handleFileChange = (e) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      if (!file.name.toLowerCase().endsWith('.pdf')) {
+        setError('Please upload a PDF file.')
+        return
+      }
+      setResumeFile(file)
+      setError('')
+    }
+  }
+
+  const handleSelectPreset = (preset) => {
+    setTargetRole(preset.title)
+    setJobDescription(preset.jd)
+  }
+
+  const handleAnalyze = async (e) => {
+    e?.preventDefault()
+    if (inputMode === 'upload' && !resumeFile) {
+      setError('Please choose a PDF resume to scan.')
+      return
+    }
+    if (inputMode === 'text' && !resumeText.trim()) {
+      setError('Please paste your resume text to scan.')
+      return
+    }
+    if (!jobDescription.trim() && !targetRole.trim()) {
+      setError('Please provide a target job description or choose a job role.')
+      return
+    }
+
+    setLoading(true)
+    setError('')
+    setResult(null)
+
+    try {
+      const data = await analyzeAtsScore({
+        file: inputMode === 'upload' ? resumeFile : null,
+        resumeText: inputMode === 'text' ? resumeText : null,
+        jobDescription: jobDescription.trim(),
+        targetRole: targetRole.trim(),
+        token,
+      })
+      setResult(data)
+      setAnalysesCompleted((count) => count + 1)
+    } catch (err) {
+      setError(getApiError(err, 'Could not analyze resume. Please check your file or try again.'))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const copyMissingKeywords = () => {
+    if (!result?.missing_keywords?.length) return
+    navigator.clipboard.writeText(result.missing_keywords.join(', '))
+    setCopiedKey(true)
+    setTimeout(() => setCopiedKey(false), 2000)
+  }
+
+  const getScoreColor = (score) => {
+    if (score >= 80) return '#10b981' // emerald
+    if (score >= 65) return '#3b82f6' // blue
+    if (score >= 50) return '#f59e0b' // amber
+    return '#ef4444' // red
+  }
+
+  return (
+    <main className="page-shell">
+      <AppHeader />
+
+      {/* Hero Banner */}
+      <section className="ats-hero-card">
+        <div className="ats-hero-content">
+          <div className="ats-badge">
+            <Sparkles size={16} /> AI-Powered ATS Resume Scanner
+          </div>
+          <h1>Optimize Your Resume for Applicant Tracking Systems</h1>
+          <p className="ats-hero-subtitle">
+            Scan your resume against any job description. Uncover missing keywords,
+            formatting red flags, and quantifiable impact scores before recruiters do.
+          </p>
+          {!token ? (
+            <p className="fine-print">
+              <Link to={LOGIN_PATH}>Sign in</Link> to analyze a resume with your monthly plan allowance.
+            </p>
+          ) : analysesRemaining != null ? (
+            <p className="fine-print">
+              {analysesRemaining} resume {analysesRemaining === 1 ? 'analysis' : 'analyses'} left this month.
+            </p>
+          ) : null}
+        </div>
+      </section>
+
+      {/* Form / Input Panel */}
+      <section className="ats-scanner-panel">
+        <form onSubmit={handleAnalyze} className="ats-form">
+          <div className="ats-form-grid">
+            {/* Left Column: Resume Input */}
+            <div className="ats-input-box">
+              <div className="ats-box-header">
+                <h3>1. Your Resume</h3>
+                <div className="ats-tab-switch">
+                  <button
+                    type="button"
+                    className={`ats-tab-btn ${inputMode === 'upload' ? 'active' : ''}`}
+                    onClick={() => setInputMode('upload')}
+                  >
+                    Upload PDF
+                  </button>
+                  <button
+                    type="button"
+                    className={`ats-tab-btn ${inputMode === 'text' ? 'active' : ''}`}
+                    onClick={() => setInputMode('text')}
+                  >
+                    Paste Text
+                  </button>
+                </div>
+              </div>
+
+              {inputMode === 'upload' ? (
+                <div className="ats-upload-dropzone">
+                  <input
+                    type="file"
+                    id="ats-resume-file"
+                    accept=".pdf,application/pdf"
+                    onChange={handleFileChange}
+                    className="ats-file-hidden"
+                  />
+                  <label htmlFor="ats-resume-file" className="ats-dropzone-label">
+                    <UploadCloud size={36} className="ats-upload-icon" />
+                    {resumeFile ? (
+                      <div className="ats-selected-file">
+                        <strong>{resumeFile.name}</strong>
+                        <span>{(resumeFile.size / (1024 * 1024)).toFixed(2)} MB • Ready to analyze</span>
+                        <span className="ats-change-pill">Change file</span>
+                      </div>
+                    ) : (
+                      <div className="ats-prompt-text">
+                        <strong>Click or drag PDF resume here</strong>
+                        <span>Maximum file size 10 MB (PDF format)</span>
+                      </div>
+                    )}
+                  </label>
+                </div>
+              ) : (
+                <div className="ats-textarea-wrapper">
+                  <textarea
+                    rows={10}
+                    value={resumeText}
+                    onChange={(e) => setResumeText(e.target.value)}
+                    placeholder="Paste your full resume text here including Summary, Skills, Experience, Projects, and Education..."
+                    className="ats-textarea"
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* Right Column: Job Description */}
+            <div className="ats-input-box">
+              <div className="ats-box-header">
+                <h3>2. Target Job Description</h3>
+                <span className="ats-hint-note">Paste JD or pick a preset</span>
+              </div>
+
+              <div className="ats-presets-row">
+                {PRESET_ROLES.map((preset) => (
+                  <button
+                    key={preset.title}
+                    type="button"
+                    className={`ats-preset-pill ${targetRole === preset.title ? 'active' : ''}`}
+                    onClick={() => handleSelectPreset(preset)}
+                  >
+                    {preset.title}
+                  </button>
+                ))}
+              </div>
+
+              <div className="ats-textarea-wrapper">
+                <textarea
+                  rows={8}
+                  value={jobDescription}
+                  onChange={(e) => setJobDescription(e.target.value)}
+                  placeholder="Paste the job requirements, responsibilities, or desired qualifications from the job posting..."
+                  className="ats-textarea"
+                />
+              </div>
+            </div>
+          </div>
+
+          {error && (
+            <div className="notice error ats-error-notice" role="alert">
+              <AlertCircle size={18} />
+              <span>{error}</span>
+            </div>
+          )}
+
+          <div className="ats-action-row">
+            <button
+              type="submit"
+              disabled={loading || !token || analysesRemaining === 0}
+              className="button primary ats-scan-btn"
+            >
+              {loading ? (
+                <>
+                  <Loader2 size={18} className="spin-icon" /> Analyzing Resume & Job Match…
+                </>
+              ) : (
+                <>
+                  <Sparkles size={18} /> Check ATS Score Now
+                </>
+              )}
+            </button>
+          </div>
+        </form>
+      </section>
+
+      {/* Results Section */}
+      {result && (
+        <section className="ats-results-panel">
+          {/* Main Score Header */}
+          <div className="ats-score-hero-card">
+            <div className="ats-score-gauge">
+              <div
+                className="ats-circle-score"
+                style={{
+                  background: `conic-gradient(${getScoreColor(result.ats_score)} ${
+                    result.ats_score * 3.6
+                  }deg, rgba(255, 255, 255, 0.08) 0deg)`,
+                }}
+              >
+                <div className="ats-circle-inner">
+                  <span className="ats-score-number">{result.ats_score}</span>
+                  <span className="ats-score-total">/100</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="ats-score-verdict">
+              <div className="ats-grade-row">
+                <span
+                  className="ats-grade-badge"
+                  style={{
+                    backgroundColor: `${getScoreColor(result.ats_score)}22`,
+                    color: getScoreColor(result.ats_score),
+                    borderColor: getScoreColor(result.ats_score),
+                  }}
+                >
+                  <Award size={16} /> {result.score_grade}
+                </span>
+                <span className="ats-meta-stat">{result.word_count} words analyzed</span>
+              </div>
+              <h2>{result.verdict}</h2>
+              <p className="ats-verdict-desc">
+                {result.ats_score >= 80
+                  ? 'Great job! Your resume demonstrates strong keyword alignment and structure for this role.'
+                  : result.ats_score >= 60
+                  ? 'Your resume is competitive, but targeted keyword and metric enhancements will significantly improve ATS pass-through.'
+                  : 'We detected critical skill gaps and formatting areas to address before submitting your application.'}
+              </p>
+
+              <div className="ats-action-buttons">
+                <button
+                  type="button"
+                  className="button primary"
+                  onClick={() => navigate(DASHBOARD_PATH)}
+                >
+                  <Target size={16} /> Practice Mock Interview for this Role
+                </button>
+                <button
+                  type="button"
+                  className="button secondary"
+                  onClick={() => {
+                    setResult(null)
+                    window.scrollTo({ top: 0, behavior: 'smooth' })
+                  }}
+                >
+                  <RefreshCw size={16} /> Scan Another Resume
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Breakdown Score Cards */}
+          <div className="ats-metrics-grid">
+            <div className="ats-metric-card">
+              <div className="ats-metric-header">
+                <span>Keyword Match</span>
+                <strong>{result.breakdown?.keyword_match}%</strong>
+              </div>
+              <div className="ats-progress-bar">
+                <div
+                  className="ats-progress-fill"
+                  style={{
+                    width: `${result.breakdown?.keyword_match}%`,
+                    background: getScoreColor(result.breakdown?.keyword_match),
+                  }}
+                />
+              </div>
+              <small>Matched against JD keywords & technical terms</small>
+            </div>
+
+            <div className="ats-metric-card">
+              <div className="ats-metric-header">
+                <span>Section Completeness</span>
+                <strong>{result.breakdown?.section_completeness}%</strong>
+              </div>
+              <div className="ats-progress-bar">
+                <div
+                  className="ats-progress-fill"
+                  style={{
+                    width: `${result.breakdown?.section_completeness}%`,
+                    background: getScoreColor(result.breakdown?.section_completeness),
+                  }}
+                />
+              </div>
+              <small>Summary, Experience, Education, Skills, Projects</small>
+            </div>
+
+            <div className="ats-metric-card">
+              <div className="ats-metric-header">
+                <span>Quantifiable Metrics</span>
+                <strong>{result.breakdown?.measurable_metrics}%</strong>
+              </div>
+              <div className="ats-progress-bar">
+                <div
+                  className="ats-progress-fill"
+                  style={{
+                    width: `${result.breakdown?.measurable_metrics}%`,
+                    background: getScoreColor(result.breakdown?.measurable_metrics),
+                  }}
+                />
+              </div>
+              <small>{result.metrics_found_count} metrics found (%, $, numbers, throughput)</small>
+            </div>
+
+            <div className="ats-metric-card">
+              <div className="ats-metric-header">
+                <span>Action Verbs</span>
+                <strong>{result.breakdown?.action_verbs}%</strong>
+              </div>
+              <div className="ats-progress-bar">
+                <div
+                  className="ats-progress-fill"
+                  style={{
+                    width: `${result.breakdown?.action_verbs}%`,
+                    background: getScoreColor(result.breakdown?.action_verbs),
+                  }}
+                />
+              </div>
+              <small>{result.action_verbs_found?.length || 0} strong action verbs identified</small>
+            </div>
+          </div>
+
+          {/* Keywords Section: Matched vs Missing */}
+          <div className="ats-keywords-container">
+            <div className="ats-keyword-column matched">
+              <div className="ats-col-heading">
+                <h4>
+                  <CheckCircle2 size={18} className="text-emerald" /> Matched Keywords (
+                  {result.matched_keywords?.length || 0})
+                </h4>
+                <span className="ats-subtext">Keywords successfully identified in your resume</span>
+              </div>
+              <div className="ats-tag-cloud">
+                {result.matched_keywords?.length ? (
+                  result.matched_keywords.map((kw) => (
+                    <span key={kw} className="ats-tag matched">
+                      ✓ {kw}
+                    </span>
+                  ))
+                ) : (
+                  <p className="ats-empty-text">No direct keyword matches found.</p>
+                )}
+              </div>
+            </div>
+
+            <div className="ats-keyword-column missing">
+              <div className="ats-col-heading">
+                <div className="ats-heading-flex">
+                  <h4>
+                    <XCircle size={18} className="text-amber" /> Missing Target Keywords (
+                    {result.missing_keywords?.length || 0})
+                  </h4>
+                  {result.missing_keywords?.length > 0 && (
+                    <button
+                      type="button"
+                      className="ats-copy-btn"
+                      onClick={copyMissingKeywords}
+                      title="Copy missing keywords to clipboard"
+                    >
+                      <Clipboard size={14} /> {copiedKey ? 'Copied!' : 'Copy'}
+                    </button>
+                  )}
+                </div>
+                <span className="ats-subtext">Add these keywords to your resume to increase ranking</span>
+              </div>
+              <div className="ats-tag-cloud">
+                {result.missing_keywords?.length ? (
+                  result.missing_keywords.map((kw) => (
+                    <span key={kw} className="ats-tag missing">
+                      + {kw}
+                    </span>
+                  ))
+                ) : (
+                  <p className="ats-empty-text text-emerald">Great job! No major keywords missing.</p>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Suggestions & Action Plan */}
+          {result.suggestions?.length > 0 && (
+            <div className="ats-suggestions-box">
+              <div className="ats-box-title">
+                <TrendingUp size={20} />
+                <h3>Actionable Improvements for Maximum ATS Score</h3>
+              </div>
+              <ul className="ats-suggestions-list">
+                {result.suggestions.map((suggestion, idx) => (
+                  <li key={idx} className="ats-suggestion-item">
+                    <span className="ats-bullet-num">{idx + 1}</span>
+                    <p>{suggestion}</p>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {/* STAR Bullet Point Optimization Examples */}
+          {result.bullet_optimizations?.length > 0 && (
+            <div className="ats-optimizations-box">
+              <div className="ats-box-title">
+                <Sparkles size={20} />
+                <h3>Recommended STAR Bullet Point Optimizations</h3>
+              </div>
+              <p className="ats-subtext">
+                Transform passive statements into high-scoring impact statements with metrics:
+              </p>
+              <div className="ats-bullets-grid">
+                {result.bullet_optimizations.map((item, idx) => (
+                  <div key={idx} className="ats-bullet-card">
+                    <div className="ats-bullet-before">
+                      <span className="ats-bullet-tag before">Before</span>
+                      <p>"{item.original}"</p>
+                    </div>
+                    <div className="ats-bullet-arrow">
+                      <ArrowRight size={18} />
+                    </div>
+                    <div className="ats-bullet-after">
+                      <span className="ats-bullet-tag after">Optimized (STAR)</span>
+                      <p>"{item.improved}"</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </section>
+      )}
+    </main>
+  )
+}

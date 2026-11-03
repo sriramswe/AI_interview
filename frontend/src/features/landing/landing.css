@@ -1,0 +1,89 @@
+/* CrackInterviewAI-inspired Landing Page Styles */
+
+@keyframes pulseSlow {
+  0%, 100% { transform: scale(1); opacity: 0.8; }
+  50% { transform: scale(1.05); opacity: 1; }
+}
+
+@keyframes floatSlow {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-8px); }
+}
+
+@keyframes gradientShift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.crack-hero-bg {
+  background-size: 200% 200%;
+  animation: gradientShift 15s ease infinite;
+}
+
+.crack-pulse {
+  animation: pulseSlow 4s ease-in-out infinite;
+}
+
+.crack-float {
+  animation: floatSlow 5s ease-in-out infinite;
+}
+
+/* Glassmorphism panel */
+.crack-glass {
+  background: rgba(18, 19, 26, 0.75);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.crack-glass-card {
+  background: rgba(26, 28, 38, 0.6);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.crack-glass-card:hover {
+  background: rgba(35, 38, 52, 0.85);
+  border-color: rgba(139, 92, 246, 0.4);
+  transform: translateY(-4px);
+  box-shadow: 0 16px 36px -10px rgba(124, 58, 237, 0.18);
+}
+
+/* Gradient Text */
+.crack-gradient-text {
+  background: linear-gradient(135deg, #a78bfa 0%, #ec4899 50%, #38bdf8 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.crack-gradient-blue {
+  background: linear-gradient(135deg, #60a5fa 0%, #a78bfa 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* Sound wave bars */
+.crack-sound-bar {
+  display: inline-block;
+  width: 3px;
+  background-color: #34d399;
+  border-radius: 999px;
+  animation: barBounce 0.8s ease-in-out infinite alternate;
+}
+
+@keyframes barBounce {
+  from { height: 6px; }
+  to { height: 20px; }
+}
+
+/* Glow orb */
+.crack-glow-orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(90px);
+  pointer-events: none;
+  z-index: 0;
+}
+

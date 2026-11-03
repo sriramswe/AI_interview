@@ -1,0 +1,1335 @@
+import json
+import os
+import unittest
+from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, patch
+from uuid import uuid4
+
+os.environ.setdefault(
+    "MYSQL_URL",
+    "mysql+pymysql://user:password@127.0.0.1:3306/interviewai_test?charset=utf8mb4",
+)
+os.environ["JWT_SECRET_KEY"] = "backend-tests-only-secret-0123456789"
+
+from fastapi.testclient import TestClient
+from sqlalchemy import create_engine, select, text
+from sqlalchemy.dialects.mysql import MEDIUMBLOB
+from sqlalchemy.ext.compiler import compiles
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
+
+import app as backend_app
+from core import database
+from core.models import (
+    CandidateProfile,
+    CodingRoundLedger,
+    DevelopmentWorkflow,
+    InterviewSession,
+    PaymentSubmission,
+    PlanUsage,
+    ResumeDocument,
+    Subscription,
+    User,
+    UserAccessControl,
+    UserAnswer,
+)
+
+
+@compiles(MEDIUMBLOB, "sqlite")
+def compile_mediumblob_for_sqlite(_type, _compiler, **_kwargs):
+    return "BLOB"
+
+
+class ProjectChatAdminTests(unittest.TestCase):
+    def setUp(self):
+        self.original_engine = database.engine
+        self.original_session_factory = database.SessionLocal
+        self.original_super_admin_emails = os.environ.get("SUPER_ADMIN_EMAILS")
+        os.environ["SUPER_ADMIN_EMAILS"] = "admin@example.com"
+        self.test_engine = create_engine(
+            "sqlite+pysqlite://",
+            connect_args={"check_same_thread": False},
+            poolclass=StaticPool,
+        )
+        database.engine = self.test_engine
+        database.SessionLocal = sessionmaker(
+            bind=self.test_engine,
+            autoflush=False,
+            expire_on_commit=False,
+        )
+        self.client_context = TestClient(backend_app.app)
+        self.client = self.client_context.__enter__()
+        self.admin_headers = self._register("admin@example.com")
+        self.user_headers = self._register(f"user-{uuid4().hex}@example.com")
+
+    def tearDown(self):
+        self.client_context.__exit__(None, None, None)
+        database.engine = self.original_engine
+        database.SessionLocal = self.original_session_factory
+        self.test_engine.dispose()
+        if self.original_super_admin_emails is None:
+            os.environ.pop("SUPER_ADMIN_EMAILS", None)
+        else:
+            os.environ["SUPER_ADMIN_EMAILS"] = self.original_super_admin_emails
+
+    def _register(self, email):
+        response = self.client.post(
+            "/api/auth/register",
+            json={
+                "username": "Test Account",
+                "email": email,
+                "password": "secure-password-123",
+            },
+        )
+        self.assertEqual(response.status_code, 201, response.text)
+        return {"Authorization": f"Bearer {response.json()['access_token']}"}
+
+    def _add_interview_session(self, created_at):
+        with database.SessionLocal() as db:
+            user = db.scalar(select(User).where(User.email.like("user-%")))
+            db.add(
+                InterviewSession(
+                    user_id=user.id,
+                    role_category="Software Engineer",
+                    sub_role="Backend",
+                    created_at=created_at,
+                )
+            )
+            db.commit()
+
+    def _start_basic_interview(self):
+        with (
+            patch.object(
+                backend_app,
+                "_get_company_intelligence",
+                new_callable=AsyncMock,
+                return_value=None,
+            ),
+            patch.object(
+                backend_app.gemini_service,
+                "generate_interview_question",
+                new_callable=AsyncMock,
+                return_value="How would you design this system?",
+            ),
+        ):
+            return self.client.post(
+                "/interviews/start",
+                headers=self.user_headers,
+                json={
+                    "role_category": "Software Engineer",
+                    "sub_role": "Backend",
+                },
+            )
+
+    def test_free_interview_limit_blocks_fourth_start_in_month(self):
+        now = datetime.now(timezone.utc)
+        for offset in range(3):
+            self._add_interview_session(now - timedelta(minutes=offset + 1))
+
+        response = self.client.post(
+            "/interviews/start",
+            headers=self.user_headers,
+            json={
+                "role_category": "Software Engineer",
+                "sub_role": "Backend",
+            },
+        )
+
+        self.assertEqual(response.status_code, 429, response.text)
+        self.assertEqual(
+            response.json()["detail"],
+            "The Free plan allows 3 mock interviews per month.",
+        )
+
+    def test_free_interview_limit_allows_third_start_in_month(self):
+        self._add_interview_session(
+            datetime.now(timezone.utc) - timedelta(hours=2, seconds=1)
+        )
+
+        response = self._start_basic_interview()
+
+        self.assertEqual(response.status_code, 200, response.text)
+
+    def test_paid_plan_bypasses_free_interview_limit(self):
+        now = datetime.now(timezone.utc)
+        self._add_interview_session(now - timedelta(minutes=30))
+        with database.SessionLocal() as db:
+            user = db.scalar(select(User).where(User.email.like("user-%")))
+            db.add(
+                Subscription(
+                    user_id=user.id,
+                    plan="pro",
+                    status="active",
+                    started_at=now,
+                    expires_at=now + timedelta(days=30),
+                )
+            )
+            db.commit()
+
+        response = self._start_basic_interview()
+
+        self.assertEqual(response.status_code, 200, response.text)
+
+    def test_pro_interview_limit_blocks_twenty_first_start_in_month(self):
+        now = datetime.now(timezone.utc)
+        with database.SessionLocal() as db:
+            user = db.scalar(select(User).where(User.email.like("user-%")))
+            db.add(
+                Subscription(
+                    user_id=user.id,
+                    plan="pro",
+                    status="active",
+                    started_at=now,
+                    expires_at=now + timedelta(days=30),
+                )
+            )
+            db.commit()
+        for offset in range(20):
+            self._add_interview_session(now - timedelta(minutes=offset + 1))
+
+        response = self.client.post(
+            "/interviews/start",
+            headers=self.user_headers,
+            json={
+                "role_category": "Software Engineer",
+                "sub_role": "Backend",
+            },
+        )
+
+        self.assertEqual(response.status_code, 429, response.text)
+        self.assertEqual(
+            response.json()["detail"],
+            "The Pro plan allows 20 mock interviews per month.",
+        )
+
+    def test_elite_interview_limit_is_unlimited(self):
+        now = datetime.now(timezone.utc)
+        with database.SessionLocal() as db:
+            user = db.scalar(select(User).where(User.email.like("user-%")))
+            db.add(
+                Subscription(
+                    user_id=user.id,
+                    plan="elite",
+                    status="active",
+                    started_at=now,
+                    expires_at=now + timedelta(days=30),
+                )
+            )
+            db.commit()
+        for offset in range(25):
+            self._add_interview_session(now - timedelta(minutes=offset + 1))
+
+        response = self._start_basic_interview()
+
+        self.assertEqual(response.status_code, 200, response.text)
+
+    def test_subscription_response_reports_interview_limit_by_plan(self):
+        free_response = self.client.get(
+            "/api/billing/subscription",
+            headers=self.user_headers,
+        )
+        self.assertEqual(free_response.status_code, 200, free_response.text)
+        self.assertEqual(
+            free_response.json()["interview_limit"],
+            "3 per month",
+        )
+        self.assertEqual(free_response.json()["resume_analysis_limit"], "1 per month")
+        self.assertEqual(free_response.json()["company_question_limit"], "not included")
+
+        now = datetime.now(timezone.utc)
+        with database.SessionLocal() as db:
+            user = db.scalar(select(User).where(User.email.like("user-%")))
+            db.add(
+                Subscription(
+                    user_id=user.id,
+                    plan="pre",
+                    status="active",
+                    started_at=now,
+                    expires_at=now + timedelta(days=30),
+                )
+            )
+            db.commit()
+
+        paid_response = self.client.get(
+            "/api/billing/subscription",
+            headers=self.user_headers,
+        )
+        self.assertEqual(paid_response.status_code, 200, paid_response.text)
+        self.assertEqual(paid_response.json()["interview_limit"], "unlimited")
+        self.assertEqual(paid_response.json()["plan"], "legacy_resume")
+
+    def test_free_feedback_hides_detailed_evidence(self):
+        basic_report = {
+            "overall_score": 8,
+            "final_verdict": "LEAN HIRE",
+            "strengths": ["Clear reasoning"],
+            "areas_to_improve": ["Add measurable outcomes"],
+            "recruiter_closing_note": "Keep practicing.",
+        }
+
+        result = backend_app._apply_feedback_tier(basic_report, "free")
+
+        self.assertNotIn("strengths", result)
+        self.assertNotIn("areas_to_improve", result)
+        self.assertEqual(result["overall_score"], 8)
+
+    def test_free_resume_analysis_quota_is_one_per_month(self):
+        with patch.object(
+            backend_app,
+            "calculate_detailed_ats_score",
+            return_value={"ats_score": 76},
+        ) as analyze:
+            first = self.client.post(
+                "/api/ats/analyze",
+                headers=self.user_headers,
+                data={"resume_text": "Python engineer", "target_role": "Engineer"},
+            )
+            second = self.client.post(
+                "/api/ats/analyze",
+                headers=self.user_headers,
+                data={"resume_text": "Python engineer", "target_role": "Engineer"},
+            )
+
+        self.assertEqual(first.status_code, 200, first.text)
+        self.assertEqual(second.status_code, 429, second.text)
+        analyze.assert_called_once()
+
+    def test_pro_resume_analysis_quota_is_five_per_month(self):
+        now = datetime.now(timezone.utc)
+        with database.SessionLocal() as db:
+            user = db.scalar(select(User).where(User.email.like("user-%")))
+            db.add(
+                Subscription(
+                    user_id=user.id,
+                    plan="pro",
+                    status="active",
+                    started_at=now,
+                    expires_at=now + timedelta(days=30),
+                )
+            )
+            db.add_all(
+                PlanUsage(user_id=user.id, usage_type="resume_analysis")
+                for _ in range(5)
+            )
+            db.commit()
+
+        with patch.object(
+            backend_app,
+            "calculate_detailed_ats_score",
+            return_value={"ats_score": 76},
+        ) as analyze:
+            response = self.client.post(
+                "/api/ats/analyze",
+                headers=self.user_headers,
+                data={"resume_text": "Python engineer", "target_role": "Engineer"},
+            )
+
+        self.assertEqual(response.status_code, 429, response.text)
+        analyze.assert_not_called()
+
+    def test_free_plan_cannot_start_company_specific_interview(self):
+        response = self.client.post(
+            "/interviews/start",
+            headers=self.user_headers,
+            json={
+                "role_category": "Software Engineer",
+                "sub_role": "Backend",
+                "target_company": "Google",
+            },
+        )
+
+        self.assertEqual(response.status_code, 403, response.text)
+        self.assertIn("requires the Pro plan", response.json()["detail"])
+
+    def test_pro_company_question_quota_is_thirty_per_month(self):
+        now = datetime.now(timezone.utc)
+        with database.SessionLocal() as db:
+            user = db.scalar(select(User).where(User.email.like("user-%")))
+            db.add(
+                Subscription(
+                    user_id=user.id,
+                    plan="pro",
+                    status="active",
+                    started_at=now,
+                    expires_at=now + timedelta(days=30),
+                )
+            )
+            db.add_all(
+                PlanUsage(user_id=user.id, usage_type="company_question")
+                for _ in range(30)
+            )
+            db.commit()
+
+        with patch.object(
+            backend_app,
+            "_get_company_intelligence",
+            new_callable=AsyncMock,
+            return_value={"industry": "Technology"},
+        ):
+            response = self.client.post(
+                "/interviews/start",
+                headers=self.user_headers,
+                json={
+                    "role_category": "Software Engineer",
+                    "sub_role": "Backend",
+                    "target_company": "Google",
+                },
+            )
+
+        self.assertEqual(response.status_code, 429, response.text)
+        self.assertIn("all 30 company-specific questions", response.json()["detail"])
+
+    def test_password_change_requires_current_password_and_updates_login(self):
+        wrong_password = self.client.post(
+            "/api/users/me/password",
+            headers=self.user_headers,
+            json={
+                "current_password": "incorrect-password",
+                "new_password": "new-secure-password-456",
+            },
+        )
+        self.assertEqual(wrong_password.status_code, 400, wrong_password.text)
+
+        same_password = self.client.post(
+            "/api/users/me/password",
+            headers=self.user_headers,
+            json={
+                "current_password": "secure-password-123",
+                "new_password": "secure-password-123",
+            },
+        )
+        self.assertEqual(same_password.status_code, 400, same_password.text)
+
+        changed = self.client.post(
+            "/api/users/me/password",
+            headers=self.user_headers,
+            json={
+                "current_password": "secure-password-123",
+                "new_password": "new-secure-password-456",
+            },
+        )
+        self.assertEqual(changed.status_code, 200, changed.text)
+        self.assertEqual(changed.json()["message"], "Password changed successfully.")
+
+        with database.SessionLocal() as db:
+            user = db.scalar(select(User).where(User.email.like("user-%")))
+            email = user.email
+        old_login = self.client.post(
+            "/api/auth/login",
+            json={"email": email, "password": "secure-password-123"},
+        )
+        self.assertEqual(old_login.status_code, 401)
+        new_login = self.client.post(
+            "/api/auth/login",
+            json={"email": email, "password": "new-secure-password-456"},
+        )
+        self.assertEqual(new_login.status_code, 200, new_login.text)
+
+    def test_chat_requires_authentication_and_uses_project_service(self):
+        unauthorized = self.client.post(
+            "/api/chat/project", json={"message": "What does this project do?"}
+        )
+        self.assertEqual(unauthorized.status_code, 401)
+
+        with patch.object(
+            backend_app.gemini_service,
+            "chat_about_project",
+            new_callable=AsyncMock,
+            return_value="It helps candidates practice interviews.",
+        ) as chat:
+            response = self.client.post(
+                "/api/chat/project",
+                headers=self.user_headers,
+                json={
+                    "message": "What does this project do?",
+                    "history": [{"role": "user", "content": "Hello"}],
+                },
+            )
+
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(
+            response.json()["answer"],
+            "It helps candidates practice interviews.",
+        )
+        chat.assert_awaited_once_with(
+            message="What does this project do?",
+            history=[{"role": "user", "content": "Hello"}],
+        )
+
+    def test_chat_accepts_pasted_question_and_trims_long_history(self):
+        long_question = "Q" * 2500
+        long_answer = "A" * 2500
+        with patch.object(
+            backend_app.gemini_service,
+            "chat_about_project",
+            new_callable=AsyncMock,
+            return_value="Try structuring your answer with a clear example.",
+        ) as chat:
+            response = self.client.post(
+                "/api/chat/project",
+                headers=self.user_headers,
+                json={
+                    "message": long_question,
+                    "history": [{"role": "assistant", "content": long_answer}],
+                },
+            )
+
+        self.assertEqual(response.status_code, 200, response.text)
+        chat.assert_awaited_once_with(
+            message=long_question,
+            history=[{"role": "assistant", "content": long_answer[-2000:]}],
+        )
+
+    def test_registration_persists_gender_and_prevents_self_assigning_admin_role(self):
+        email = f"gender-{uuid4().hex}@example.com"
+        response = self.client.post(
+            "/api/auth/register",
+            json={
+                "username": "Gender Test",
+                "email": email,
+                "password": "secure-password-123",
+                "gender": "non_binary",
+                "role": "admin",
+            },
+        )
+
+        self.assertEqual(response.status_code, 201, response.text)
+        self.assertEqual(response.json()["user"]["gender"], "non_binary")
+        self.assertEqual(response.json()["user"]["role"], "user")
+        headers = {"Authorization": f"Bearer {response.json()['access_token']}"}
+
+        updated = self.client.patch(
+            "/api/users/me",
+            headers=headers,
+            json={"gender": "female", "role": "admin"},
+        )
+
+        self.assertEqual(updated.status_code, 200, updated.text)
+        self.assertEqual(updated.json()["gender"], "female")
+        self.assertEqual(updated.json()["role"], "user")
+        with database.SessionLocal() as db:
+            user = db.scalar(select(User).where(User.email == email))
+            self.assertEqual(user.gender, "female")
+            self.assertEqual(user.role, "user")
+
+    def test_allowlisted_admin_role_is_persisted_and_returned(self):
+        admin = self.client.get("/api/users/me", headers=self.admin_headers)
+
+        self.assertEqual(admin.status_code, 200, admin.text)
+        self.assertEqual(admin.json()["role"], "admin")
+        with database.SessionLocal() as db:
+            user = db.scalar(select(User).where(User.email == "admin@example.com"))
+            self.assertEqual(user.role, "admin")
+
+    def test_super_admin_can_promote_user_and_promoted_admin_cannot_change_roles(self):
+        with database.SessionLocal() as db:
+            user = db.scalar(select(User).where(User.email.like("user-%")))
+            user_id = user.id
+
+        promoted = self.client.patch(
+            f"/api/admin/users/{user_id}",
+            headers=self.admin_headers,
+            json={"role": "admin"},
+        )
+
+        self.assertEqual(promoted.status_code, 200, promoted.text)
+        self.assertEqual(promoted.json()["role"], "admin")
+        self.assertFalse(promoted.json()["super_admin"])
+
+        admin_summary = self.client.get(
+            "/api/admin/summary",
+            headers=self.user_headers,
+        )
+        self.assertEqual(admin_summary.status_code, 200, admin_summary.text)
+
+        forbidden_role_change = self.client.patch(
+            f"/api/admin/users/{user_id}",
+            headers=self.user_headers,
+            json={"role": "user"},
+        )
+        self.assertEqual(forbidden_role_change.status_code, 403)
+
+    def test_regular_user_cannot_assign_admin_role(self):
+        with database.SessionLocal() as db:
+            admin = db.scalar(select(User).where(User.email == "admin@example.com"))
+            admin_id = admin.id
+
+        response = self.client.patch(
+            f"/api/admin/users/{admin_id}",
+            headers=self.user_headers,
+            json={"role": "admin"},
+        )
+
+        self.assertEqual(response.status_code, 403)
+
+    def test_existing_users_table_is_upgraded_with_gender_and_role(self):
+        engine = create_engine("sqlite+pysqlite://")
+        try:
+            with engine.begin() as connection:
+                connection.exec_driver_sql(
+                    "CREATE TABLE users ("
+                    "id INTEGER PRIMARY KEY, "
+                    "username VARCHAR(80) NOT NULL, "
+                    "email VARCHAR(120) NOT NULL, "
+                    "password_hash VARCHAR(255) NOT NULL, "
+                    "created_at DATETIME NOT NULL)"
+                )
+                connection.exec_driver_sql(
+                    "INSERT INTO users (id, username, email, password_hash, created_at) "
+                    "VALUES (1, 'Existing', 'existing@example.com', 'hash', "
+                    "'2026-01-01 00:00:00')"
+                )
+
+            backend_app._ensure_user_profile_columns(engine)
+
+            with engine.connect() as connection:
+                row = connection.execute(
+                    text("SELECT gender, role FROM users WHERE id = 1")
+                ).one()
+            self.assertIsNone(row.gender)
+            self.assertEqual(row.role, "user")
+        finally:
+            engine.dispose()
+
+    def test_admin_allowlist_and_user_search(self):
+        denied = self.client.get("/api/admin/summary", headers=self.user_headers)
+        self.assertEqual(denied.status_code, 403)
+
+        summary = self.client.get("/api/admin/summary", headers=self.admin_headers)
+        self.assertEqual(summary.status_code, 200, summary.text)
+        self.assertEqual(summary.json()["total_users"], 2)
+
+        users = self.client.get(
+            "/api/admin/users",
+            headers=self.admin_headers,
+            params={"search": "user-", "limit": 1},
+        )
+        self.assertEqual(users.status_code, 200, users.text)
+        self.assertEqual(users.json()["total"], 1)
+        self.assertEqual(len(users.json()["users"]), 1)
+
+    def test_admin_plan_changes_suspend_and_restore(self):
+        with database.SessionLocal() as db:
+            user = db.scalar(select(User).where(User.email.like("user-%")))
+            user_id = user.id
+
+        plan_response = self.client.patch(
+            f"/api/admin/users/{user_id}",
+            headers=self.admin_headers,
+            json={"plan": "elite", "duration_days": 45},
+        )
+        self.assertEqual(plan_response.status_code, 200, plan_response.text)
+        self.assertEqual(plan_response.json()["plan"], "elite")
+
+        removed_plan = self.client.patch(
+            f"/api/admin/users/{user_id}",
+            headers=self.admin_headers,
+            json={"plan": "pre", "duration_days": 45},
+        )
+        self.assertEqual(removed_plan.status_code, 422)
+
+        suspended = self.client.patch(
+            f"/api/admin/users/{user_id}",
+            headers=self.admin_headers,
+            json={"suspended": True},
+        )
+        self.assertEqual(suspended.status_code, 200, suspended.text)
+        self.assertTrue(suspended.json()["suspended"])
+        blocked = self.client.get("/api/users/me", headers=self.user_headers)
+        self.assertEqual(blocked.status_code, 403)
+
+        restored = self.client.patch(
+            f"/api/admin/users/{user_id}",
+            headers=self.admin_headers,
+            json={"suspended": False},
+        )
+        self.assertEqual(restored.status_code, 200, restored.text)
+        self.assertFalse(restored.json()["suspended"])
+        allowed = self.client.get("/api/users/me", headers=self.user_headers)
+        self.assertEqual(allowed.status_code, 200)
+
+    def test_admin_cannot_suspend_or_delete_an_allowlisted_admin(self):
+        with database.SessionLocal() as db:
+            admin_id = db.scalar(
+                select(User.id).where(User.email == "admin@example.com")
+            )
+
+        suspended = self.client.patch(
+            f"/api/admin/users/{admin_id}",
+            headers=self.admin_headers,
+            json={"suspended": True},
+        )
+        deleted = self.client.delete(
+            f"/api/admin/users/{admin_id}",
+            headers=self.admin_headers,
+        )
+        self.assertEqual(suspended.status_code, 409)
+        self.assertEqual(deleted.status_code, 409)
+
+    def test_payment_review_activates_subscription_for_super_admin(self):
+        with database.SessionLocal() as db:
+            user = db.scalar(select(User).where(User.email.like("user-%")))
+            payment = PaymentSubmission(
+                user_id=user.id,
+                plan="pre",
+                amount_rupees=199,
+                screenshot=b"receipt",
+                screenshot_content_type="image/png",
+                status="pending",
+            )
+            db.add(payment)
+            db.commit()
+            payment_id = payment.id
+
+        pending = self.client.get(
+            "/api/admin/payments/pending",
+            headers=self.admin_headers,
+        )
+        self.assertEqual(pending.status_code, 200, pending.text)
+        self.assertEqual(pending.json()[0]["payment_id"], payment_id)
+        self.assertEqual(pending.json()[0]["plan"], "legacy_resume")
+
+        with patch.dict(os.environ, {"SUBSCRIPTION_DURATION_DAYS": "30"}):
+            reviewed = self.client.post(
+                f"/api/admin/payments/{payment_id}/review",
+                headers=self.admin_headers,
+                json={"decision": "approved"},
+            )
+
+        self.assertEqual(reviewed.status_code, 200, reviewed.text)
+        self.assertEqual(reviewed.json()["status"], "approved")
+        self.assertEqual(reviewed.json()["subscription"]["plan"], "legacy_resume")
+
+    def test_manual_payment_proof_records_reference_and_blocks_reuse(self):
+        screenshot = b"\x89PNG\r\n\x1a\nmanual-payment-proof"
+        request = {
+            "data": {
+                "plan": "pro",
+                "transaction_reference": "  UTR-2026-001  ",
+            },
+            "files": {
+                "screenshot": ("payment.png", screenshot, "image/png"),
+            },
+            "headers": self.user_headers,
+        }
+
+        submitted = self.client.post("/api/billing/payments", **request)
+        duplicate = self.client.post(
+            "/api/billing/payments",
+            data={"plan": "elite", "transaction_reference": "utr-2026-001"},
+            files={"screenshot": ("payment.png", screenshot, "image/png")},
+            headers=self.user_headers,
+        )
+        history = self.client.get(
+            "/api/billing/payments",
+            headers=self.user_headers,
+        )
+
+        self.assertEqual(submitted.status_code, 201, submitted.text)
+        self.assertEqual(submitted.json()["amount_rupees"], 299)
+        self.assertEqual(submitted.json()["transaction_reference"], "UTR-2026-001")
+        self.assertEqual(duplicate.status_code, 409, duplicate.text)
+        self.assertEqual(len(history.json()), 1)
+        self.assertEqual(
+            history.json()[0]["transaction_reference"],
+            "UTR-2026-001",
+        )
+
+    def test_manual_upi_checkout_returns_configured_payee_and_plan_amount(self):
+        with patch.dict(
+            os.environ,
+            {"UPI_ID": "merchant@example", "UPI_PAYEE_NAME": "InterviewAI"},
+        ):
+            response = self.client.post(
+                "/api/billing/checkout",
+                headers=self.user_headers,
+                json={"plan": "elite"},
+            )
+
+        self.assertEqual(response.status_code, 200, response.text)
+        checkout = response.json()
+        self.assertEqual(checkout["upi_id"], "merchant@example")
+        self.assertEqual(checkout["payee_name"], "InterviewAI")
+        self.assertEqual(checkout["amount_rupees"], 599)
+        self.assertIn("Complete payment", checkout["instructions"])
+
+    def test_interview_shuffles_selected_categories_and_rotates_question_focus(self):
+        selected = ["Frontend", "Database", "AI/ML"]
+        with (
+            patch.object(
+                backend_app,
+                "_get_company_intelligence",
+                new_callable=AsyncMock,
+                return_value=None,
+            ),
+            patch.object(
+                backend_app.gemini_service,
+                "generate_interview_question",
+                new_callable=AsyncMock,
+                return_value="How did you structure your project?",
+            ) as generate_question,
+        ):
+            response = self.client.post(
+                "/interviews/start",
+                headers=self.user_headers,
+                json={
+                    "role_category": "Software Engineer",
+                    "sub_role": "Full Stack",
+                    "technical_categories": selected,
+                },
+            )
+
+        self.assertEqual(response.status_code, 200, response.text)
+        interview = response.json()
+        self.assertEqual(set(interview["technical_category_plan"]), set(selected))
+        self.assertIn(interview["question_category"], selected)
+        self.assertEqual(
+            generate_question.await_args.kwargs["question_category"],
+            interview["question_category"],
+        )
+
+        with database.SessionLocal() as db:
+            session = db.get(InterviewSession, interview["id"])
+            self.assertEqual(
+                backend_app._next_session_question_category(session),
+                interview["technical_category_plan"][1],
+            )
+
+    def test_interview_configures_and_persists_question_count_per_round(self):
+        with (
+            patch.object(
+                backend_app,
+                "_get_company_intelligence",
+                new_callable=AsyncMock,
+                return_value=None,
+            ),
+            patch.object(
+                backend_app.gemini_service,
+                "generate_interview_question",
+                new_callable=AsyncMock,
+                return_value="How do you design a reliable service?",
+            ),
+        ):
+            response = self.client.post(
+                "/interviews/start",
+                headers=self.user_headers,
+                json={
+                    "role_category": "Software Engineer",
+                    "sub_role": "Backend",
+                    "questions_per_round": 5,
+                },
+            )
+
+        self.assertEqual(response.status_code, 200, response.text)
+        interview = response.json()
+        self.assertEqual(interview["questions_per_round"], 5)
+        with database.SessionLocal() as db:
+            session = db.get(InterviewSession, interview["id"])
+            self.assertEqual(
+                backend_app._session_questions_per_round(session),
+                5,
+            )
+        history = self.client.get(
+            f"/api/interviews/history/{interview['id']}",
+            headers=self.user_headers,
+        )
+        self.assertEqual(history.status_code, 200, history.text)
+        self.assertEqual(history.json()["questions_per_round"], 5)
+
+    def test_selected_question_limit_controls_round_transition(self):
+        with database.SessionLocal() as db:
+            user = db.scalar(select(User).where(User.email.like("user-%")))
+            session = InterviewSession(
+                user_id=user.id,
+                role_category="Software Engineer",
+                sub_role="Backend",
+                interview_round="Technical/Screening",
+                questions_count=4,
+                total_questions=4,
+                round_scores={"Technical/Screening": 8.0},
+                transcript=[
+                    {"role": "system", "questions_per_round": 5},
+                    {
+                        "role": "assistant",
+                        "content": "How do you design a reliable service?",
+                        "round": "Technical/Screening",
+                    },
+                ],
+            )
+            db.add(session)
+            db.commit()
+            interview_id = session.id
+
+        with (
+            patch.object(
+                backend_app.gemini_service,
+                "evaluate_answer",
+                new_callable=AsyncMock,
+                return_value='{"score": 8, "feedback": "Good reasoning.", "improvements": []}',
+            ),
+            patch.object(
+                backend_app,
+                "_generate_session_question",
+                new_callable=AsyncMock,
+                return_value=("How do you handle a difficult stakeholder?", None),
+            ) as generate_question,
+        ):
+            response = self.client.post(
+                "/interviews/submit-answer",
+                headers=self.user_headers,
+                json={
+                    "interview_id": interview_id,
+                    "answer": "I would validate the requirements, define service boundaries, and add observability.",
+                },
+            )
+
+        self.assertEqual(response.status_code, 200, response.text)
+        result = response.json()
+        self.assertTrue(result["round_completed"])
+        self.assertEqual(result["next_round"], "Behavioral/HR")
+        self.assertEqual(result["questions_asked"], 0)
+        self.assertEqual(result["questions_per_round"], 5)
+        generate_question.assert_awaited_once()
+
+    def test_round_below_cutoff_ends_session_without_generating_a_question(self):
+        with database.SessionLocal() as db:
+            user = db.scalar(select(User).where(User.email.like("user-%")))
+            session = InterviewSession(
+                user_id=user.id,
+                role_category="Software Engineer",
+                sub_role="Backend",
+                interview_round="Technical/Screening",
+                questions_count=4,
+                total_questions=4,
+                round_scores={"Technical/Screening": 5.9},
+                transcript=[
+                    {"role": "system", "questions_per_round": 5},
+                    {
+                        "role": "assistant",
+                        "content": "How do you design a reliable service?",
+                        "round": "Technical/Screening",
+                    },
+                ],
+            )
+            db.add(session)
+            db.commit()
+            interview_id = session.id
+
+        with (
+            patch.object(
+                backend_app.gemini_service,
+                "evaluate_answer",
+                new_callable=AsyncMock,
+                return_value='{"score": 5, "feedback": "Add more detail.", "improvements": []}',
+            ),
+            patch.object(
+                backend_app,
+                "_generate_session_question",
+                new_callable=AsyncMock,
+            ) as generate_question,
+            patch.object(
+                backend_app,
+                "get_memory_service",
+                return_value=SimpleNamespace(learn_from_session=AsyncMock()),
+            ),
+        ):
+            response = self.client.post(
+                "/interviews/submit-answer",
+                headers=self.user_headers,
+                json={
+                    "interview_id": interview_id,
+                    "answer": "I would use a server.",
+                },
+            )
+
+        self.assertEqual(response.status_code, 200, response.text)
+        result = response.json()
+        self.assertTrue(result["terminated"])
+        self.assertFalse(result["round_passed"])
+        self.assertEqual(result["overall_status"], "failed")
+        self.assertIsNone(result["next_question"])
+        self.assertEqual(result["failed_round"], "Technical/Screening")
+        generate_question.assert_not_awaited()
+        with database.SessionLocal() as db:
+            session = db.get(InterviewSession, interview_id)
+            self.assertEqual(session.overall_status, "failed")
+            self.assertEqual(
+                session.transcript[-1]["completion"]["status"],
+                "failed",
+            )
+
+    def test_candidate_can_edit_saved_answer_after_ai_evaluation_failure(self):
+        with database.SessionLocal() as db:
+            user = db.scalar(select(User).where(User.email.like("user-%")))
+            session = InterviewSession(
+                user_id=user.id,
+                role_category="Software Engineer",
+                sub_role="Backend",
+                interview_round="Technical/Screening",
+                transcript=[
+                    {
+                        "role": "assistant",
+                        "content": "How would you design a scalable API?",
+                        "round": "Technical/Screening",
+                        "technical_category": "Backend",
+                    }
+                ],
+            )
+            db.add(session)
+            db.commit()
+            interview_id = session.id
+
+        improved_answer = "I would define the API contract, add pagination, and use caching."
+        with (
+            patch.object(
+                backend_app.gemini_service,
+                "evaluate_answer",
+                new_callable=AsyncMock,
+                side_effect=[
+                    RuntimeError("AI provider temporarily unavailable."),
+                    '{"score": 8, "feedback": "Clear and practical.", "improvements": []}',
+                ],
+            ) as evaluate_answer,
+            patch.object(
+                backend_app,
+                "_generate_session_question",
+                new_callable=AsyncMock,
+                return_value=("How would you test this API?", "Backend"),
+            ),
+        ):
+            first_attempt = self.client.post(
+                "/interviews/submit-answer",
+                headers=self.user_headers,
+                json={
+                    "interview_id": interview_id,
+                    "answer": "I would make an API.",
+                },
+            )
+            self.assertEqual(first_attempt.status_code, 503, first_attempt.text)
+
+            retry = self.client.post(
+                "/interviews/submit-answer",
+                headers=self.user_headers,
+                json={
+                    "interview_id": interview_id,
+                    "answer": improved_answer,
+                },
+            )
+
+        self.assertEqual(retry.status_code, 200, retry.text)
+        self.assertEqual(evaluate_answer.await_count, 2)
+        self.assertEqual(
+            evaluate_answer.await_args.kwargs["answer"],
+            improved_answer,
+        )
+        with database.SessionLocal() as db:
+            session = db.get(InterviewSession, interview_id)
+            answer_turn = next(
+                item for item in session.transcript if item.get("role") == "user"
+            )
+            saved_answer = db.scalar(
+                select(UserAnswer).where(UserAnswer.session_id == interview_id)
+            )
+            self.assertEqual(answer_turn["content"], improved_answer)
+            self.assertNotIn("evaluation_pending", answer_turn)
+            self.assertEqual(saved_answer.user_answer, improved_answer)
+
+    def test_final_director_answer_completes_interview_without_another_question(self):
+        required_rounds = list(
+            backend_app.get_rounds_for_role("Software Engineer")
+        )
+        previous_rounds = required_rounds[:-1]
+        with database.SessionLocal() as db:
+            user = db.scalar(select(User).where(User.email.like("user-%")))
+            session = InterviewSession(
+                user_id=user.id,
+                role_category="Software Engineer",
+                sub_role="Backend",
+                interview_round="Final/Director",
+                current_round_number=len(required_rounds),
+                questions_count=19,
+                total_questions=79,
+                rounds_completed=previous_rounds,
+                round_scores={round_name: 8.0 for round_name in required_rounds},
+                transcript=[
+                    {
+                        "role": "assistant",
+                        "content": "What would your first 90 days look like?",
+                        "round": "Final/Director",
+                    }
+                ],
+            )
+            db.add(session)
+            db.commit()
+            interview_id = session.id
+
+        report = {
+            "overall_score": 8,
+            "final_verdict": "HIRE",
+            "strengths": ["Clear strategic thinking"],
+            "areas_to_improve": ["Add more delivery metrics"],
+            "recruiter_closing_note": "Strong final-round performance.",
+        }
+        memory_service = SimpleNamespace(learn_from_session=AsyncMock())
+        with (
+            patch.object(
+                backend_app.gemini_service,
+                "evaluate_answer",
+                new_callable=AsyncMock,
+                return_value='{"score": 8, "feedback": "Strong plan.", "improvements": []}',
+            ) as evaluate_answer,
+            patch.object(
+                backend_app.gemini_service,
+                "generate_master_report",
+                new_callable=AsyncMock,
+                side_effect=[
+                    RuntimeError("Report provider is temporarily unavailable."),
+                    json.dumps(report),
+                ],
+            ) as generate_report,
+            patch.object(
+                backend_app.gemini_service,
+                "generation_status",
+                side_effect=[
+                    "OpenRouter (test/evaluator)",
+                    "Ollama fallback (qwen2.5:7b)",
+                    "Ollama fallback (qwen2.5:7b)",
+                ],
+            ),
+            patch.object(
+                backend_app,
+                "_generate_session_question",
+                new_callable=AsyncMock,
+            ) as generate_question,
+            patch.object(
+                backend_app,
+                "get_memory_service",
+                return_value=memory_service,
+            ),
+        ):
+            first_response = self.client.post(
+                "/interviews/submit-answer",
+                headers=self.user_headers,
+                json={
+                    "interview_id": interview_id,
+                    "answer": "I would align with the team, learn the product, and identify measurable priorities.",
+                },
+            )
+            self.assertEqual(first_response.status_code, 200, first_response.text)
+            pending_report = first_response.json()
+            self.assertTrue(pending_report["interview_completed"])
+            self.assertTrue(pending_report["master_report_pending"])
+            self.assertIsNone(pending_report["next_question"])
+            self.assertEqual(pending_report["overall_status"], "completed")
+            self.assertEqual(
+                pending_report["ai_provider_status"],
+                "OpenRouter (test/evaluator)",
+            )
+            self.assertEqual(
+                pending_report["report_provider_status"],
+                "Ollama fallback (qwen2.5:7b)",
+            )
+            saved_pending = self.client.get(
+                f"/api/interviews/history/{interview_id}",
+                headers=self.user_headers,
+            )
+            self.assertEqual(saved_pending.status_code, 200, saved_pending.text)
+            self.assertTrue(
+                saved_pending.json()["transcript"][-1]["report_pending"]
+            )
+            self.assertEqual(
+                saved_pending.json()["transcript"][-1]["report_provider_status"],
+                "Ollama fallback (qwen2.5:7b)",
+            )
+
+            response = self.client.post(
+                "/interviews/submit-answer",
+                headers=self.user_headers,
+                json={
+                    "interview_id": interview_id,
+                    "answer": "I would align with the team, learn the product, and identify measurable priorities.",
+                },
+            )
+
+        self.assertEqual(response.status_code, 200, response.text)
+        result = response.json()
+        self.assertTrue(result["interview_completed"])
+        self.assertTrue(result["terminated"])
+        self.assertEqual(result["overall_status"], "completed")
+        self.assertIsNone(result["next_question"])
+        self.assertEqual(result["questions_asked"], 20)
+        self.assertEqual(result["total_questions"], 80)
+        self.assertEqual(result["rounds_completed"], required_rounds)
+        self.assertEqual(result["master_report"]["final_verdict"], "HIRE")
+        self.assertEqual(
+            result["ai_provider_status"],
+            "OpenRouter (test/evaluator)",
+        )
+        self.assertEqual(
+            result["report_provider_status"],
+            "Ollama fallback (qwen2.5:7b)",
+        )
+        generate_question.assert_not_awaited()
+        self.assertEqual(evaluate_answer.await_count, 1)
+        self.assertEqual(generate_report.await_count, 2)
+        with database.SessionLocal() as db:
+            session = db.get(InterviewSession, interview_id)
+            self.assertEqual(session.overall_status, "completed")
+            final_answer = session.transcript[-1]
+            self.assertEqual(final_answer["completion"]["status"], "completed")
+            self.assertEqual(
+                final_answer["master_report"]["final_verdict"],
+                "HIRE",
+            )
+            self.assertEqual(
+                final_answer["ai_provider_status"],
+                "OpenRouter (test/evaluator)",
+            )
+            self.assertEqual(
+                final_answer["report_provider_status"],
+                "Ollama fallback (qwen2.5:7b)",
+            )
+        history = self.client.get(
+            f"/api/interviews/history/{interview_id}",
+            headers=self.user_headers,
+        )
+        self.assertEqual(history.status_code, 200, history.text)
+        saved_final_answer = history.json()["transcript"][-1]
+        self.assertEqual(saved_final_answer["completion"]["status"], "completed")
+        self.assertEqual(saved_final_answer["master_report"]["final_verdict"], "HIRE")
+        self.assertEqual(
+            saved_final_answer["report_provider_status"],
+            "Ollama fallback (qwen2.5:7b)",
+        )
+
+    def test_resume_categories_auto_detect_from_skills_and_projects(self):
+        resume_text = (
+            "Professional Experience\n"
+            "Built a React frontend and FastAPI backend using MySQL.\n"
+            "Project: developed a machine learning recommendation tool."
+        )
+        with (
+            patch.object(
+                backend_app,
+                "_extract_resume_text",
+                return_value=resume_text,
+            ),
+            patch.object(
+                backend_app,
+                "_get_company_intelligence",
+                new_callable=AsyncMock,
+                return_value=None,
+            ),
+            patch.object(
+                backend_app.gemini_service,
+                "generate_interview_question",
+                new_callable=AsyncMock,
+                return_value="Tell me about the recommendation project.",
+            ) as generate_question,
+        ):
+            response = self.client.post(
+                "/interviews/upload-resume",
+                headers=self.user_headers,
+                data={
+                    "role_category": "Software Engineer",
+                    "sub_role": "Full Stack",
+                },
+                files={"file": ("resume.pdf", b"%PDF-1.7", "application/pdf")},
+            )
+
+        self.assertEqual(response.status_code, 200, response.text)
+        categories = response.json()["technical_category_plan"]
+        self.assertTrue({"Frontend", "Backend", "Database", "AI/ML", "Project Deep Dive"}.issubset(categories))
+        self.assertIn("React frontend", generate_question.await_args.kwargs["resume_text"])
+
+    def test_delete_removes_account_and_related_relational_data(self):
+        with database.SessionLocal() as db:
+            user = db.scalar(select(User).where(User.email.like("user-%")))
+            user_id = user.id
+            now = datetime.now(timezone.utc)
+            interview = InterviewSession(
+                user_id=user_id,
+                role_category="Engineering",
+                sub_role="Backend Engineer",
+            )
+            db.add(
+                Subscription(user_id=user_id, plan="pre", status="active",
+                             started_at=now, expires_at=now + timedelta(days=30))
+            )
+            db.add_all(
+                [
+                    interview,
+                    CandidateProfile(
+                        user_id=user_id, employment_status="employed"
+                    ),
+                    ResumeDocument(
+                        user_id=user_id,
+                        template_id="classic-navy",
+                        title="Test resume",
+                        content={},
+                    ),
+                    DevelopmentWorkflow(
+                        user_id=user_id, task_description="Test workflow"
+                    ),
+                    PaymentSubmission(
+                        user_id=user_id,
+                        plan="pre",
+                        amount_rupees=199,
+                        screenshot=b"receipt",
+                        screenshot_content_type="image/png",
+                        status="pending",
+                    ),
+                    UserAccessControl(
+                        user_id=user_id,
+                        suspended=False,
+                        updated_by="admin@example.com",
+                    ),
+                ]
+            )
+            db.flush()
+            db.add(
+                UserAnswer(
+                    session_id=interview.id,
+                    question_text="A question?",
+                    user_answer="An answer.",
+                    final_score=7,
+                )
+            )
+            db.add(
+                CodingRoundLedger(
+                    session_id=interview.id,
+                    user_id=user_id,
+                )
+            )
+            db.commit()
+
+        response = self.client.delete(
+            f"/api/admin/users/{user_id}",
+            headers=self.admin_headers,
+        )
+
+        self.assertEqual(response.status_code, 204, response.text)
+        with database.SessionLocal() as db:
+            self.assertIsNone(db.get(User, user_id))
+            for model in (
+                CandidateProfile,
+                CodingRoundLedger,
+                DevelopmentWorkflow,
+                InterviewSession,
+                PaymentSubmission,
+                ResumeDocument,
+                Subscription,
+                UserAccessControl,
+            ):
+                self.assertIsNone(
+                    db.scalar(select(model).where(model.user_id == user_id)),
+                    model.__name__,
+                )
+            self.assertEqual(
+                db.scalar(select(UserAnswer).where(UserAnswer.session_id == interview.id)),
+                None,
+            )
+
+if __name__ == "__main__":
+    unittest.main()

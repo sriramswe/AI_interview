@@ -1,0 +1,36 @@
+{
+  "__Test_Company__": {
+    "name": "__Test_Company__",
+    "hit_count": 6,
+    "domain": "Engineering & Tech",
+    "interview_style": "Undetermined",
+    "cultural_values": [],
+    "interview_rounds": {},
+    "last_updated": "2026-03-03T20:24:26.042701",
+    "consensus_score": 0.0,
+    "vetted": true,
+    "interview_rounds_sequence": [
+      "Technical",
+      "Behavioral"
+    ]
+  },
+  "Accenture": {
+    "sessions": 2,
+    "hit_count": 2,
+    "average_score": 5.3,
+    "expert_sessions": 0,
+    "witness_sessions": 0,
+    "consensus_score": 0.0,
+    "vetted": false,
+    "roles": [
+      "java developer"
+    ],
+    "rounds_seen": [
+      "Behavioral/HR",
+      "Final/Director",
+      "Managerial",
+      "System Design",
+      "Technical/Screening"
+    ]
+  }
+}

@@ -1,0 +1,48 @@
+# Deployment
+
+## Backend on Render with MySQL
+
+The root `render.yaml` defines a Python web service rooted at `backend`. Create the service from the repository's Render Blueprint. Provision MySQL separately, then provide these values in Render's environment settings:
+
+- `MYSQL_URL`: the MySQL connection string using the `mysql+pymysql://` driver.
+- `CORS_ORIGINS`: comma-separated frontend origins, including the production Vercel domain.
+- `OPENROUTER_API_KEY`: required when using OpenRouter; keep it in backend environment settings, never in frontend variables.
+- `OPENROUTER_MODEL`: optional model override; local and Render defaults use `google/gemma-4-31b-it:free`, currently listed in OpenRouter's free catalog.
+- `OPENROUTER_FALLBACK_MODELS`: comma-separated alternate models tried when the primary is rate-limited or returns no text.
+- `OPENROUTER_OLLAMA_FALLBACK`: set to `true` when the backend host has a reachable Ollama server; local config enables this by default.
+- `OPENROUTER_SITE_URL`: optional OpenRouter attribution URL.
+- `GEMINI_API_KEY`: required only when `AI_PROVIDER=gemini`.
+- `GOOGLE_CLIENT_ID`: OAuth client ID for backend token verification when using Google sign-in.
+- `SUPER_ADMIN_EMAILS`: comma-separated email allowlist for super-admin accounts. Matching accounts receive the persisted `admin` role at startup and can assign `user`/`admin` roles. Other accounts may be promoted to admin by a super-admin in the admin user table; do not remove the last trusted super-admin.
+- `UPI_ID`, `UPI_PAYEE_NAME`, and `PAYMENT_REVIEWER_EMAILS`: required to enable manual UPI payments and review. Use the merchant's verified receiving UPI ID and an inbox belonging to an authorized reviewer. Keep the receiving ID in backend environment settings, not frontend variables or source control. Configure `SUPER_ADMIN_EMAILS` for the reviewer who will approve/reject receipts.
+- `AI_PROVIDER` and the selected provider's settings: required for the project help chatbot and other AI features.
+
+For local development, create the MySQL database before starting FastAPI:
+
+```sql
+CREATE DATABASE interviewai CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+```
+
+Set `MYSQL_URL` and the selected AI provider settings in `backend/.env`.
+
+Render generates `JWT_SECRET_KEY`. On startup, SQLAlchemy `create_all` creates missing MySQL tables; it does not modify existing tables. The backend applies the additive `gender` and `role` columns to existing `users` tables at startup. Other schema changes must be applied and verified deliberately before deploying code that depends on them. Existing PostgreSQL/Neon records are not automatically copied or converted; migrate them separately if they must be retained. Do not commit credentials or paste them into frontend `VITE_*` variables.
+
+## Frontend on Vercel
+
+Import the repository into Vercel and set the project root to `frontend`. `frontend/vercel.json` supplies the Vite build, SPA fallback, and `same-origin-allow-popups` policy for Google sign-in popups. Set `VITE_API_BASE_URL` to the deployed backend URL in Vercel project settings; the local development `.env` targets `http://localhost:8001` only. To enable Google sign-in, set `VITE_GOOGLE_CLIENT_ID` to the same OAuth client ID configured on the backend, add the exact deployed frontend origin (scheme and hostname, without a path) to that OAuth client's Authorized JavaScript origins in Google Cloud, and add the origin to backend `CORS_ORIGINS`. The browser's “origin is not allowed” error cannot be fixed in application code until the real frontend origin is authorized. Redeploy after setting Vercel variables and update backend CORS configuration.
+
+The authenticated project-help chat uses the configured backend AI provider. Super-admin operations are enforced by the backend `SUPER_ADMIN_EMAILS` allowlist, not by the frontend navigation or route. Admins can search users, suspend or restore access, assign or remove plans, delete accounts and relational user data, and approve or reject pending manual payments.
+
+### Manual UPI subscription payments
+
+1. In the backend hosting environment, set `UPI_ID` to the verified receiving UPI ID, `UPI_PAYEE_NAME` to the matching merchant name, and `PAYMENT_REVIEWER_EMAILS` to the reviewer email(s). Also set `SUPER_ADMIN_EMAILS` for the reviewer account that will use the admin console.
+2. Deploy/restart the backend. The billing page generates a QR/UPI link using the configured ID and current Pro/Elite price. Checkout remains unavailable with a clear error until `UPI_ID` is set.
+3. Candidates pay in their UPI app and submit the receipt screenshot and UPI transaction reference in the dashboard. Requests stay pending; a reviewer verifies the amount and transaction in the merchant's UPI/bank app and approves or rejects the receipt in the admin console.
+4. The subscription activates only after an authorized admin approves it. This is a manual transfer-and-review flow, not automatic payment confirmation or a bank-integrated gateway; never approve based only on the uploaded screenshot.
+
+## Model and browser feature requirements
+
+- Set `AI_PROVIDER=openrouter` and configure `OPENROUTER_API_KEY` to use the configured OpenRouter model. The default free Gemma model can be overridden with `OPENROUTER_MODEL`; comma-separated alternates are configured with `OPENROUTER_FALLBACK_MODELS`. The backend tries these in sequence if a model is rate-limited or returns no text, then uses local Ollama when `OPENROUTER_OLLAMA_FALLBACK=true`. On hosted services without Ollama, leave this disabled. This sends AI prompts, including interview and resume text, to OpenRouter for processing; free model availability and rate limits can change. For Gemini, configure `GEMINI_API_KEY`. For Ollama/LoRA, select `AI_PROVIDER=ollama` and make its model or adapter available to the backend's Ollama service; adapter weights are not included in this repository.
+- MySQL stores interview history and relational data. Interview answers are evaluated using the configured backend NLP/model providers; no external vector database is required.
+- Camera framing and voice-pitch estimates run locally in the browser and depend on browser support and user-granted permissions. They do not provide body-language, emotion, or confidence judgments.
+- Calendar reminders are downloaded as local `.ics` files. LinkedIn sharing uses its public share link; OAuth integrations and voice/video cloning providers are not configured.

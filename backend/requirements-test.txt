@@ -1,0 +1,15 @@
+duckduckgo-search>=7
+fastapi>=0.115,<1
+google-auth>=2.37
+httpx>=0.27
+langgraph>=0.2
+matplotlib>=3.9
+pdfplumber>=0.11
+pydantic>=2
+PyMySQL>=1.1
+pypdf>=5
+python-dotenv>=1
+python-multipart>=0.0.20
+qrcode>=8.0
+scikit-learn>=1.5
+SQLAlchemy>=2.0

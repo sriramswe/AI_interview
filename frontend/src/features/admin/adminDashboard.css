@@ -1,0 +1,367 @@
+.admin-hero,
+.admin-section .section-heading,
+.admin-pagination,
+.admin-payment,
+.admin-payment-actions,
+.admin-receipt-dialog header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.admin-hero {
+  margin-bottom: 20px;
+}
+
+.admin-hero h1 {
+  margin: 6px 0;
+  color: var(--text-h);
+  font-size: clamp(30px, 5vw, 42px);
+}
+
+.admin-hero .muted,
+.admin-section .muted {
+  margin-bottom: 0;
+}
+
+.admin-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+.admin-stat {
+  padding: 18px 20px;
+}
+
+.admin-stat p {
+  margin: 0 0 8px;
+  color: var(--text);
+  font-size: 13px;
+}
+
+.admin-stat strong {
+  color: var(--text-h);
+  font-size: 25px;
+}
+
+.admin-section {
+  margin: 20px 0;
+}
+
+.admin-section .section-heading {
+  margin-bottom: 18px;
+}
+
+.admin-section .section-heading h2 {
+  margin-bottom: 0;
+}
+
+.admin-search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+  color: var(--text);
+}
+
+.admin-search input {
+  min-width: 0;
+  flex: 1;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+  color: var(--text-h);
+}
+
+.admin-table-scroll {
+  overflow-x: auto;
+}
+
+.admin-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.admin-table th {
+  padding: 11px 12px;
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 750;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.admin-table td {
+  min-width: 135px;
+  padding: 13px 12px;
+  border-top: 1px solid var(--border);
+  color: var(--text-h);
+  vertical-align: middle;
+}
+
+.admin-table td:first-child {
+  min-width: 210px;
+}
+
+.admin-table td:last-child {
+  min-width: 340px;
+}
+
+.admin-table td > strong,
+.admin-table td > span,
+.admin-table td > small {
+  display: block;
+}
+
+.admin-table td > span,
+.admin-table td > small {
+  margin-top: 4px;
+  color: var(--text);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.admin-status {
+  width: fit-content;
+  padding: 3px 8px;
+  border-radius: 20px;
+  font-size: 11px !important;
+  font-weight: 700;
+}
+
+.admin-status.active {
+  background: rgb(25 135 84 / 11%);
+  color: #198754;
+}
+
+.admin-status.suspended {
+  background: rgb(180 35 24 / 10%);
+  color: #b42318;
+}
+
+.admin-protected {
+  display: inline-flex !important;
+  align-items: center;
+  gap: 4px;
+}
+
+.admin-plan {
+  text-transform: capitalize;
+}
+
+.admin-user-actions {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.admin-plan-action {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.admin-plan-action select,
+.admin-duration input {
+  max-width: 100px;
+  padding: 7px 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text-h);
+}
+
+.admin-plan-action button,
+.admin-delete-button {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--accent);
+  cursor: pointer;
+}
+
+.admin-delete-button {
+  color: #b42318;
+}
+
+.admin-plan-action button:disabled,
+.admin-delete-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.admin-action-button {
+  padding: 7px 9px;
+  font-size: 12px;
+}
+
+.admin-pagination {
+  justify-content: flex-end;
+  margin-top: 14px;
+}
+
+.admin-pagination > span {
+  color: var(--text);
+  font-size: 13px;
+}
+
+.admin-duration {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+  color: var(--text);
+  font-size: 12px;
+}
+
+.admin-duration input {
+  width: 76px;
+}
+
+.admin-empty {
+  color: var(--text) !important;
+  text-align: center;
+}
+
+.admin-payment-list {
+  display: grid;
+  gap: 10px;
+}
+
+.admin-payment {
+  flex-wrap: wrap;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.admin-payment > div:first-child {
+  display: grid;
+  gap: 3px;
+}
+
+.admin-payment span,
+.admin-payment small {
+  color: var(--text);
+  font-size: 12px;
+}
+
+.admin-payment-actions {
+  justify-content: flex-start;
+  flex-wrap: wrap;
+}
+
+.admin-payment-actions .button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.admin-review-note {
+  display: grid;
+  gap: 6px;
+  max-width: 520px;
+  margin-bottom: 14px;
+  color: var(--text);
+  font-size: 12px;
+}
+
+.admin-review-note input {
+  padding: 9px 11px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--bg);
+  color: var(--text-h);
+}
+
+.admin-empty-copy {
+  margin: 0;
+}
+
+.admin-receipt-backdrop {
+  position: fixed;
+  z-index: 60;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgb(12 10 18 / 62%);
+}
+
+.admin-receipt-dialog {
+  width: min(800px, 100%);
+  max-height: 90vh;
+  overflow: auto;
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--bg);
+}
+
+.admin-receipt-dialog header {
+  margin-bottom: 14px;
+}
+
+.admin-receipt-dialog h2 {
+  margin: 0;
+  color: var(--text-h);
+  font-size: 17px;
+}
+
+.admin-receipt-dialog header button {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text-h);
+  cursor: pointer;
+}
+
+.admin-receipt-dialog img {
+  display: block;
+  max-width: 100%;
+  max-height: 72vh;
+  margin: 0 auto;
+  object-fit: contain;
+}
+
+@media (max-width: 760px) {
+  .admin-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .admin-hero,
+  .admin-section .section-heading {
+    align-items: flex-start;
+  }
+}
+
+@media (max-width: 520px) {
+  .admin-hero {
+    flex-direction: column;
+  }
+
+  .admin-summary-grid {
+    gap: 8px;
+  }
+
+  .admin-stat {
+    padding: 14px;
+  }
+
+  .admin-payment-actions {
+    width: 100%;
+  }
+}

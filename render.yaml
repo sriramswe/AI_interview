@@ -1,0 +1,39 @@
+services:
+  - type: web
+    name: interviewai-backend
+    runtime: python
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.8
+      - key: MYSQL_URL
+        sync: false
+      - key: JWT_SECRET_KEY
+        generateValue: true
+      - key: CORS_ORIGINS
+        sync: false
+      - key: AI_PROVIDER
+        value: openrouter
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: OPENROUTER_MODEL
+        value: google/gemma-4-31b-it:free
+      - key: OPENROUTER_FALLBACK_MODELS
+        value: google/gemma-4-26b-a4b-it:free,nvidia/nemotron-3-ultra-550b-a55b:free
+      - key: OPENROUTER_OLLAMA_FALLBACK
+        value: "false"
+      - key: OPENROUTER_SITE_URL
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: SUPER_ADMIN_EMAILS
+        sync: false
+      - key: UPI_ID
+        sync: false
+      - key: PAYMENT_REVIEWER_EMAILS
+        sync: false
