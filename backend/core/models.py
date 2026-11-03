@@ -12,6 +12,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.dialects.mysql import MEDIUMBLOB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.sql import quoted_name
 from core.database import Base
 
 
@@ -71,7 +72,9 @@ class CandidateProfile(Base):
     education_level: Mapped[str | None] = mapped_column(String(120))
     institution: Mapped[str | None] = mapped_column(String(160))
     field_of_study: Mapped[str | None] = mapped_column(String(120))
-    current_role: Mapped[str | None] = mapped_column(String(120))
+    current_role: Mapped[str | None] = mapped_column(
+        quoted_name("current_role", True), String(120)
+    )
     years_of_experience: Mapped[float | None] = mapped_column(Float)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False
