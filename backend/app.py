@@ -98,12 +98,12 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        origin.strip()
+        origin.strip().rstrip("/")
         for origin in os.getenv(
             "CORS_ORIGINS",
-            "http://localhost:5173,http://127.0.0.1:5173,https://ai-interview-prep-swart-mu.vercel.app",
+            "http://localhost:5173,https://ai-interview-prep-swart-mu.vercel.app",
         ).split(",")
-        if origin.strip()
+        if origin.strip().rstrip("/")
     ],
     allow_credentials=True,
     allow_methods=["*"],
