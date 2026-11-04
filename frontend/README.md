@@ -22,7 +22,7 @@ Run `npm run lint` and `npm run build` before publishing.
 
 ## Vercel
 
-Create a Vercel project with the repository's `frontend` directory as its root. The included `vercel.json` configures the Vite build and SPA fallback. Set `VITE_API_BASE_URL` and, if using Google sign-in, `VITE_GOOGLE_CLIENT_ID` in the Vercel project environment variables for every environment you use, then redeploy.
+Create a Vercel project with the repository's `frontend` directory as its root. The included `vercel.json` configures the Vite build and SPA fallback. Set `VITE_API_BASE_URL` to the Render API URL (`https://ai-interview-10mb.onrender.com`) and, if using Google sign-in, `VITE_GOOGLE_CLIENT_ID` in the Vercel project environment variables for every environment you use, then redeploy. Production builds default to this Render URL if the API variable is missing or points to localhost; local development continues to default to `http://localhost:8001`.
 
 The backend must allow the deployed frontend origin in its `CORS_ORIGINS` setting. Never put backend secrets in a `VITE_*` variable; Vite includes those values in public browser assets.
 

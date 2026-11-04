@@ -1,7 +1,16 @@
 import axios from 'axios'
 
+const configuredApiUrl = import.meta.env.VITE_API_BASE_URL?.trim()
+const configuredApiIsLoopback = /^https?:\/\/(?:localhost|127(?:\.\d{1,3}){3}|\[::1\])(?::\d+)?(?:\/|$)/i
+  .test(configuredApiUrl || '')
+const defaultApiUrl = import.meta.env.PROD
+  ? 'https://ai-interview-10mb.onrender.com'
+  : 'http://localhost:8001'
+
 export const API_BASE_URL = (
-  import.meta.env.VITE_API_BASE_URL || 'http://localhost:8001'
+  import.meta.env.PROD && configuredApiIsLoopback
+    ? defaultApiUrl
+    : configuredApiUrl || defaultApiUrl
 ).replace(/\/+$/, '')
 export const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || ''
 

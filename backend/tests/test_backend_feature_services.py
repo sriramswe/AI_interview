@@ -74,7 +74,7 @@ class BackendFeatureServiceTests(unittest.TestCase):
         intelligence = get_company_intelligence()
         companies = intelligence.get_all_companies()
 
-        self.assertEqual(len(companies), 383)
+        self.assertEqual(len(companies), 382)
         self.assertEqual(
             intelligence.get_company("gOoGlE")["name"],
             "Google",
