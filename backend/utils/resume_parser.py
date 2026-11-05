@@ -314,20 +314,6 @@ def calculate_detailed_ats_score(
         if issue not in suggestions:
             suggestions.append(issue)
 
-    # 11. Sample Bullet Enhancements (STAR format)
-    bullet_optimizations = [
-        {
-            "original": "Worked on backend APIs using Python and database.",
-            "improved": "Architected and deployed 12+ RESTful microservices in FastAPI with PostgreSQL, improving endpoint throughput by 42%.",
-            "method": "STAR format (Action Verb + Tech Stack + Measurable Result)"
-        },
-        {
-            "original": "Responsible for frontend UI components and fixing bugs.",
-            "improved": "Spearheaded frontend redesign in React and Tailwind CSS, reducing page load latency by 1.8s and enhancing user engagement.",
-            "method": "STAR format (Action Verb + Tech Stack + Measurable Result)"
-        }
-    ]
-
     return {
         "ats_score": overall_ats_score,
         "score_grade": grade,
@@ -357,5 +343,4 @@ def calculate_detailed_ats_score(
         "metrics_found_count": metrics_count,
         "action_verbs_found": found_action_verbs[:10],
         "suggestions": suggestions,
-        "bullet_optimizations": bullet_optimizations,
     }

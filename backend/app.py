@@ -2522,6 +2522,11 @@ async def analyze_ats_score(
             job_description=job_description,
             target_role=target_role,
         )
+        result["ai_match_prediction"] = await gemini_service.predict_resume_match(
+            resume_text=extracted_text,
+            job_description=job_description,
+            target_role=target_role,
+        )
     except Exception:
         _release_monthly_usage(db, usage_id)
         raise
