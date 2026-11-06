@@ -61,6 +61,14 @@ export default function ATSCheckerPage() {
     setResult(null)
   }
 
+  const handleInputModeChange = (mode) => {
+    setInputMode(mode)
+    setJobDescription('')
+    setTargetRole('')
+    setResult(null)
+    setError('')
+  }
+
   const handleGenerateTarget = async () => {
     if (!token) {
       setError('Please sign in to generate a target job description.')
@@ -187,14 +195,14 @@ export default function ATSCheckerPage() {
                   <button
                     type="button"
                     className={`ats-tab-btn ${inputMode === 'upload' ? 'active' : ''}`}
-                    onClick={() => setInputMode('upload')}
+                    onClick={() => handleInputModeChange('upload')}
                   >
                     Upload PDF
                   </button>
                   <button
                     type="button"
                     className={`ats-tab-btn ${inputMode === 'text' ? 'active' : ''}`}
-                    onClick={() => setInputMode('text')}
+                    onClick={() => handleInputModeChange('text')}
                   >
                     Paste Text
                   </button>
@@ -272,7 +280,7 @@ export default function ATSCheckerPage() {
                 </button>
               </div>
               <p className="ats-hint-note">
-                Add your resume, then generate an editable target description based on its experience and skills.
+                Add your resume and acknowledge AI processing below to generate an editable target description.
               </p>
               <div className="ats-textarea-wrapper">
                 <textarea
@@ -302,9 +310,9 @@ export default function ATSCheckerPage() {
             />
             <span>
               I understand my resume will be sent to this app's configured AI provider
-              to generate a target job description and analyze my ATS match. Depending on the provider, data
-              may be processed outside this app; avoid submitting information you
-              do not want to share.
+              to generate a target job description and analyze my ATS match. Depending
+              on the provider, data may be processed outside this app; avoid submitting
+              information you do not want to share.
             </span>
           </label>
 

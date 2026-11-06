@@ -261,6 +261,41 @@ class BackendFeatureServiceTests(unittest.TestCase):
                     )
                 )
 
+    def test_target_job_description_is_generated_from_resume_evidence(self):
+        response = {
+            "target_role": "Backend Python Engineer",
+            "job_description": (
+                "Seeking a backend engineer with Python API and PostgreSQL experience."
+            ),
+        }
+        with patch(
+            "services.gemini_service.gemini_service._generate",
+            new=AsyncMock(return_value=json.dumps(response)),
+        ) as generate:
+            result = asyncio.run(
+                gemini_service.generate_target_job_description(
+                    "Built Python APIs and maintained PostgreSQL databases."
+                )
+            )
+
+        self.assertEqual(result, response)
+        prompt = generate.await_args.args[0]
+        self.assertIn("based only on the candidate's demonstrated skills", prompt)
+        self.assertIn("Built Python APIs", prompt)
+        self.assertTrue(generate.await_args.kwargs["json_mode"])
+
+    def test_target_job_description_rejects_incomplete_model_response(self):
+        with (
+            patch(
+                "services.gemini_service.gemini_service._generate",
+                new=AsyncMock(return_value='{"target_role": "Backend Engineer"}'),
+            ),
+            self.assertRaisesRegex(RuntimeError, "incomplete target job description"),
+        ):
+            asyncio.run(
+                gemini_service.generate_target_job_description("Python engineer")
+            )
+
     def test_project_chat_supports_general_interview_and_technical_questions(self):
         async def chat():
             return await gemini_service.chat_about_project(

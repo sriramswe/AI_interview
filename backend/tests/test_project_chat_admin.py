@@ -325,6 +325,46 @@ class ProjectChatAdminTests(unittest.TestCase):
         self.assertEqual(subscription.status_code, 200, subscription.text)
         self.assertEqual(subscription.json()["resume_analyses_remaining"], 1)
 
+    def test_ats_target_job_description_uses_pasted_resume(self):
+        generated = {
+            "target_role": "Backend Python Engineer",
+            "job_description": "Python API and database experience.",
+        }
+        with patch.object(
+            backend_app.gemini_service,
+            "generate_target_job_description",
+            new=AsyncMock(return_value=generated),
+        ) as generate:
+            response = self.client.post(
+                "/api/ats/generate-target",
+                headers=self.user_headers,
+                data={
+                    "resume_text": "Built Python APIs and PostgreSQL services.",
+                    "ai_processing_acknowledged": "true",
+                },
+            )
+
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(response.json(), generated)
+        generate.assert_awaited_once_with(
+            "Built Python APIs and PostgreSQL services."
+        )
+
+    def test_ats_target_job_description_requires_ai_processing_acknowledgment(self):
+        with patch.object(
+            backend_app.gemini_service,
+            "generate_target_job_description",
+            new=AsyncMock(),
+        ) as generate:
+            response = self.client.post(
+                "/api/ats/generate-target",
+                headers=self.user_headers,
+                data={"resume_text": "Python engineer"},
+            )
+
+        self.assertEqual(response.status_code, 400, response.text)
+        generate.assert_not_awaited()
+
     def test_resume_analysis_requires_ai_processing_acknowledgment(self):
         with patch.object(
             backend_app.gemini_service,
