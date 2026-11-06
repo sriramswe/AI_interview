@@ -23,8 +23,6 @@ services:
         value: google/gemma-4-31b-it:free
       - key: OPENROUTER_FALLBACK_MODELS
         value: google/gemma-4-26b-a4b-it:free,nvidia/nemotron-3-ultra-550b-a55b:free
-      - key: OPENROUTER_OLLAMA_FALLBACK
-        value: "false"
       - key: OPENROUTER_SITE_URL
         sync: false
       - key: GEMINI_API_KEY
