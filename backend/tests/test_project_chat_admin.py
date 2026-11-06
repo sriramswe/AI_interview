@@ -350,6 +350,36 @@ class ProjectChatAdminTests(unittest.TestCase):
             "Built Python APIs and PostgreSQL services."
         )
 
+    def test_ats_target_job_description_extracts_uploaded_pdf(self):
+        generated = {
+            "target_role": "Backend Python Engineer",
+            "job_description": "Python API and database experience.",
+        }
+        with (
+            patch.object(
+                backend_app,
+                "_extract_resume_text",
+                return_value="Built Python APIs and PostgreSQL services.",
+            ),
+            patch.object(
+                backend_app.gemini_service,
+                "generate_target_job_description",
+                new=AsyncMock(return_value=generated),
+            ) as generate,
+        ):
+            response = self.client.post(
+                "/api/ats/generate-target",
+                headers=self.user_headers,
+                data={"ai_processing_acknowledged": "true"},
+                files={"file": ("resume.pdf", b"%PDF-test", "application/pdf")},
+            )
+
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(response.json(), generated)
+        generate.assert_awaited_once_with(
+            "Built Python APIs and PostgreSQL services."
+        )
+
     def test_ats_target_job_description_requires_ai_processing_acknowledgment(self):
         with patch.object(
             backend_app.gemini_service,

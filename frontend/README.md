@@ -32,7 +32,7 @@ Signed-in users can create up to three saved resumes with templates for free. Ac
 
 ## ATS resume analysis
 
-The ATS checker combines a rule-based compatibility score with an AI-estimated role match and has no monthly analysis limit. The AI assessment is an estimate, not a hiring probability or guarantee. Resume and job-description text are sent to the backend's configured AI provider; users must acknowledge this before analysis.
+The ATS checker combines a rule-based compatibility score with an AI-estimated role match and has no monthly analysis limit. Users can generate an editable target job description from an uploaded PDF or pasted resume before running the match. The AI assessment is an estimate, not a hiring probability or guarantee. Resume text is sent to the backend's configured AI provider for description generation and analysis; users must acknowledge this before either operation.
 
 ## Plan quotas
 
