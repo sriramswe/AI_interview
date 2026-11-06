@@ -61,6 +61,7 @@
   body {
     min-width: 320px;
     min-height: 100vh;
+    overflow-x: clip;
     margin: 0;
     font-family: var(--font-sans);
     font-size: 15px;

@@ -3796,3 +3796,59 @@ input[aria-invalid="true"] {
   }
 }
 }
+
+@media (max-width: 767px) {
+  .page-shell {
+    width: calc(100% - 24px);
+  }
+
+  .page-shell :is(.panel, .feedback-card, .progress-panel, .ats-scanner-panel) {
+    min-width: 0;
+  }
+
+  .page-shell :is(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]), select, textarea) {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .section-heading {
+    align-items: flex-start;
+  }
+
+  .coding-workbench,
+  .coding-problem,
+  .coding-evaluation,
+  .coding-roadmap {
+    min-width: 0;
+  }
+
+  .coding-editor {
+    width: 100%;
+    min-width: 0;
+  }
+}
+
+@media (max-width: 420px) {
+  .page-shell {
+    width: calc(100% - 20px);
+    padding-top: 12px;
+  }
+
+  .panel,
+  .progress-panel,
+  .ats-scanner-panel {
+    padding: 14px;
+  }
+
+  .coding-start-card,
+  .coding-problem,
+  .coding-workbench,
+  .coding-evaluation,
+  .coding-roadmap {
+    padding: 12px;
+  }
+
+  .coding-heading h2 {
+    font-size: 21px;
+  }
+}

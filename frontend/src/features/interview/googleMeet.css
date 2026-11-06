@@ -19,6 +19,38 @@
   margin-bottom: 24px;
 }
 
+.interview-meet-wrapper {
+  width: min(100%, 1400px);
+  min-width: 0;
+  margin: 0 auto;
+}
+
+.interview-meet-wrapper > * {
+  min-width: 0;
+}
+
+.meet-container.coding-mode {
+  height: auto;
+  min-height: 0;
+  max-height: none;
+  overflow: visible;
+}
+
+.meet-container.coding-mode .meet-main-area {
+  flex: 0 0 auto;
+  overflow: visible;
+}
+
+.meet-container.coding-mode .meet-stage.coding-meet-stage {
+  flex: 1 1 auto;
+  overflow: visible;
+}
+
+.meet-container.coding-mode .coding-meet-content {
+  width: 100%;
+  min-height: 0;
+}
+
 /* Top Navigation Bar */
 .meet-topbar {
   display: flex;
@@ -608,6 +640,52 @@
 }
 
 @media (max-width: 768px) {
+  .meet-topbar {
+    flex-wrap: wrap;
+    gap: 10px 14px;
+    padding: 12px 14px;
+  }
+
+  .meet-info-left {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+
+  .meet-title {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .meet-topbar-center {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
+
+  .meet-topbar-right {
+    margin-left: auto;
+  }
+
+  .meet-bottom-dock {
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 10px 14px;
+  }
+
+  .meet-dock-left {
+    display: none;
+  }
+
+  .meet-dock-center {
+    flex: 1 1 100%;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .meet-dock-right {
+    margin: 0 auto;
+  }
+
   .meet-side-drawer {
     position: absolute;
     top: 0;
@@ -841,6 +919,53 @@
     min-height: min(480px, 86vh);
     min-height: min(480px, 86dvh);
     border-radius: 10px;
+  }
+
+  .meet-container.coding-mode {
+    height: auto;
+    min-height: 0;
+  }
+
+  .meet-info-left {
+    gap: 8px;
+  }
+
+  .meet-title {
+    font-size: 13px;
+  }
+
+  .meet-code,
+  .meet-clock {
+    display: none;
+  }
+
+  .meet-round-pill,
+  .meet-timer-pill {
+    font-size: 11px;
+  }
+
+  .meet-stage {
+    padding: 10px;
+  }
+
+  .meet-dock-center {
+    justify-content: flex-start;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding: 2px 0 6px;
+    scrollbar-width: thin;
+  }
+
+  .meet-ctrl-btn {
+    width: 40px;
+    height: 40px;
+    flex: 0 0 40px;
+  }
+
+  .meet-leave-btn {
+    height: 40px;
+    flex: 0 0 auto;
+    padding-inline: 12px;
   }
 
   .meet-side-drawer {
