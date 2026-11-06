@@ -84,7 +84,7 @@ export default function AuthPage() {
           theme: 'outline',
           size: 'large',
           text: 'continue_with',
-          width: 320,
+          width: Math.max(200, Math.min(320, buttonContainer.clientWidth)),
         })
       }
     }).catch((error) => {
