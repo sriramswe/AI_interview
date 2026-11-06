@@ -160,7 +160,9 @@ class BackendFeatureServiceTests(unittest.TestCase):
         self.assertIn("Question category: Backend", prompt)
         self.assertIn("For a fresher", prompt)
         self.assertIn("academic or personal projects as work experience", prompt)
-        self.assertEqual(generate.await_args.kwargs["ollama_options"]["num_predict"], 256)
+        self.assertEqual(
+            generate.await_args.kwargs["generation_options"]["num_predict"], 256
+        )
         self.assertIn("Tell me about the Python API", question)
 
     def test_interview_question_prompt_includes_candidate_stage_and_bounds_history(self):
@@ -183,7 +185,9 @@ class BackendFeatureServiceTests(unittest.TestCase):
         self.assertIn("Stage: college student", prompt)
         self.assertIn("Question 4", prompt)
         self.assertNotIn("Question 3", prompt)
-        self.assertEqual(generate.await_args.kwargs["ollama_options"]["num_ctx"], 8192)
+        self.assertEqual(
+            generate.await_args.kwargs["generation_options"]["num_predict"], 256
+        )
 
     def test_answer_evaluation_requests_json_mode(self):
         with patch(
@@ -280,7 +284,7 @@ class BackendFeatureServiceTests(unittest.TestCase):
         self.assertIn("low-latency ML prediction service", prompt)
         self.assertEqual(answer, "Use a scalable online inference service.")
 
-    def test_ai_provider_timeout_returns_an_actionable_error(self):
+    def test_openrouter_timeout_returns_an_actionable_error(self):
         class TimeoutClient:
             def __init__(self, timeout):
                 self.timeout = timeout
@@ -296,20 +300,23 @@ class BackendFeatureServiceTests(unittest.TestCase):
                 raise httpx.ReadTimeout("request timed out")
 
         with (
-            patch.dict(os.environ, {
-                "AI_PROVIDER": "gemini",
-                "GEMINI_API_KEY": "test-key",
-                "AI_TIMEOUT_SECONDS": "0.01",
-            }),
+            patch.dict(
+                os.environ,
+                {
+                    "OPENROUTER_API_KEY": "test-key",
+                    "AI_TIMEOUT_SECONDS": "0.01",
+                },
+                clear=True,
+            ),
             patch("services.gemini_service.httpx.AsyncClient", TimeoutClient),
             self.assertRaisesRegex(
                 AIProviderTimeout,
-                "AI provider timed out after 0.01 seconds",
+                "OpenRouter timed out after 0.01 seconds",
             ),
         ):
             asyncio.run(AIService()._generate("test prompt"))
 
-    def test_gemini_json_mode_requests_json_and_extracts_visible_text(self):
+    def test_openrouter_json_mode_requests_json_and_extracts_visible_text(self):
         requests = []
 
         class FakeResponse:
@@ -320,17 +327,15 @@ class BackendFeatureServiceTests(unittest.TestCase):
 
             def json(self):
                 return {
-                    "candidates": [
-                        {"content": {"parts": [{"text": ""}]}},
+                    "choices": [
                         {
-                            "content": {
-                                "parts": [
-                                    {"text": "internal thought", "thought": True},
-                                    {"text": "Generated "},
-                                    {"text": "answer."},
+                            "message": {
+                                "content": [
+                                    {"type": "text", "text": "Generated "},
+                                    {"type": "text", "text": "answer."},
                                 ]
                             }
-                        },
+                        }
                     ]
                 }
 
@@ -351,7 +356,8 @@ class BackendFeatureServiceTests(unittest.TestCase):
         with (
             patch.dict(
                 os.environ,
-                {"AI_PROVIDER": "gemini", "GEMINI_API_KEY": "test-key"},
+                {"OPENROUTER_API_KEY": "test-key"},
+                clear=True,
             ),
             patch("services.gemini_service.httpx.AsyncClient", FakeClient),
         ):
@@ -361,8 +367,12 @@ class BackendFeatureServiceTests(unittest.TestCase):
 
         self.assertEqual(result, "Generated answer.")
         self.assertEqual(
-            requests[0][1]["json"]["generationConfig"],
-            {"temperature": 0.1, "responseMimeType": "application/json"},
+            requests[0][1]["json"]["response_format"],
+            {"type": "json_object"},
+        )
+        self.assertEqual(
+            requests[0][0],
+            "https://openrouter.ai/api/v1/chat/completions",
         )
 
     def test_openrouter_uses_free_model_router_with_minimum_output_budget(self):
@@ -419,9 +429,8 @@ class BackendFeatureServiceTests(unittest.TestCase):
                 AIService()._generate(
                     "Generate a practice question.",
                     json_mode=True,
-                    ollama_options={
+                    generation_options={
                         "num_predict": 256,
-                        "num_ctx": 8192,
                         "temperature": 0.2,
                     },
                 )
@@ -488,7 +497,6 @@ class BackendFeatureServiceTests(unittest.TestCase):
             patch.dict(
                 os.environ,
                 {
-                    "AI_PROVIDER": "openrouter",
                     "OPENROUTER_API_KEY": "test-key",
                     "OPENROUTER_MODEL": "primary/free",
                     "OPENROUTER_FALLBACK_MODELS": "fallback/free",
@@ -535,7 +543,6 @@ class BackendFeatureServiceTests(unittest.TestCase):
             patch.dict(
                 os.environ,
                 {
-                    "AI_PROVIDER": "openrouter",
                     "OPENROUTER_API_KEY": "test-key",
                     "OPENROUTER_MODEL": "primary/free",
                     "OPENROUTER_FALLBACK_MODELS": "",
@@ -576,7 +583,6 @@ class BackendFeatureServiceTests(unittest.TestCase):
             patch.dict(
                 os.environ,
                 {
-                    "AI_PROVIDER": "openrouter",
                     "OPENROUTER_API_KEY": "test-key",
                     "OPENROUTER_MODEL": "primary/free",
                     "OPENROUTER_FALLBACK_MODELS": "fallback/free",
@@ -628,7 +634,6 @@ class BackendFeatureServiceTests(unittest.TestCase):
             patch.dict(
                 os.environ,
                 {
-                    "AI_PROVIDER": "openrouter",
                     "OPENROUTER_API_KEY": "test-key",
                     "OPENROUTER_FALLBACK_MODELS": "",
                 },
@@ -644,7 +649,6 @@ class BackendFeatureServiceTests(unittest.TestCase):
 
     def test_openrouter_requires_an_api_key(self):
         with (
-            patch.dict(os.environ, {"AI_PROVIDER": "openrouter"}, clear=False),
             patch.dict(os.environ, {"OPENROUTER_API_KEY": ""}),
             self.assertRaisesRegex(
                 RuntimeError,
@@ -653,7 +657,7 @@ class BackendFeatureServiceTests(unittest.TestCase):
         ):
             asyncio.run(AIService()._generate("test prompt"))
 
-    def test_coding_problem_generation_bounds_context_and_ollama_output(self):
+    def test_coding_problem_generation_bounds_context_and_openrouter_output(self):
         async def generate_problem():
             return await gemini_service.generate_coding_problem(
                 role="Software Engineer",
@@ -666,23 +670,18 @@ class BackendFeatureServiceTests(unittest.TestCase):
                 language="python",
             )
 
-        with (
-            patch.dict(os.environ, {"OLLAMA_CODING_MODEL": "qwen3.5:4b"}),
-            patch(
-                "services.gemini_service.gemini_service._generate",
-                new=AsyncMock(return_value="{}"),
-            ) as generate,
-        ):
+        with patch(
+            "services.gemini_service.gemini_service._generate",
+            new=AsyncMock(return_value="{}"),
+        ) as generate:
             asyncio.run(generate_problem())
 
         prompt = generate.await_args.args[0]
-        options = generate.await_args.kwargs["ollama_options"]
+        options = generate.await_args.kwargs["generation_options"]
         self.assertLessEqual(prompt.count("COMPANY_MARKER"), 3000 // len("COMPANY_MARKER"))
         self.assertLessEqual(prompt.count("RESUME_MARKER"), 2500 // len("RESUME_MARKER"))
         self.assertEqual(options["num_predict"], 900)
-        self.assertEqual(options["num_ctx"], 8192)
         self.assertEqual(options["temperature"], 0.2)
-        self.assertEqual(generate.await_args.kwargs["ollama_model"], "qwen3.5:4b")
 
     def test_speaking_metrics_count_fillers_and_use_answer_duration(self):
         result = analyze_speaking_metrics(

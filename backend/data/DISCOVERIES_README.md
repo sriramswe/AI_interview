@@ -6,8 +6,8 @@ This directory stores company intelligence profiles discovered dynamically by th
 2. **Router Agent**: Analyzes the company name for ambiguity and geographic location (Geographic Guarding).
 3. **Researcher Agent**: Uses DuckDuckGo with **Evergreen Perpetual Freshness** (Auto-calculating Current Year).
 4. **Auditor Agent (The Bouncer)**: Filters out SEO junk, verifies identity, and applies **Dynamic Domain Guarding** (prevents role forcing).
-5. **Architect Agent (Llama-3)**: Processes Audited Data into a structured profile.
-6. **Critic Agent (Gemini)**: Final quality assurance check.
+5. **Architect Agent (OpenRouter)**: Processes Audited Data into a structured profile.
+6. **Critic Agent (OpenRouter)**: Final quality assurance check.
 
 ### 📊 Confidence Score Matrix:
 | Score | Status | Description |
