@@ -514,8 +514,11 @@
 }
 
 .ats-privacy-consent {
-  display: flex;
-  align-items: flex-start;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  width: 100%;
+  box-sizing: border-box;
   gap: 10px;
   margin: 20px 0 12px;
   color: var(--text-muted, #94a3b8);
@@ -527,7 +530,10 @@
 .ats-privacy-consent input {
   margin-top: 2px;
   accent-color: #818cf8;
-  flex: 0 0 auto;
+}
+
+.ats-privacy-consent span {
+  min-width: 0;
 }
 
 .ats-ai-match-card {
