@@ -14,34 +14,14 @@ import {
   XCircle,
 } from 'lucide-react'
 import { useInterviewApp } from '../../context/useInterviewApp'
-import { analyzeAtsScore } from '../../services/atsService'
+import {
+  analyzeAtsScore,
+  generateTargetJobDescription,
+} from '../../services/atsService'
 import { getApiError } from '../../services/apiClient'
 import { AppHeader } from '../dashboard/DashboardPage'
 import { DASHBOARD_PATH, LOGIN_PATH } from '../../routing/routes'
 import './ats.css'
-
-const PRESET_ROLES = [
-  {
-    title: 'Full Stack Engineer',
-    jd: 'We are seeking a Full Stack Engineer proficient in React, JavaScript/TypeScript, Python, FastAPI/Node.js, PostgreSQL, Docker, and AWS. Experience building scalable REST APIs, microservices, and modern user interfaces with CI/CD pipelines.',
-  },
-  {
-    title: 'Frontend React Developer',
-    jd: 'Looking for a Senior Frontend Developer with expertise in React, TypeScript, Next.js, Tailwind CSS, Redux/Zustand, and state management. Strong grasp of web performance optimization, responsive design, and automated testing (Jest, Cypress).',
-  },
-  {
-    title: 'Backend Python Engineer',
-    jd: 'Seeking Backend Software Engineer with in-depth knowledge of Python, FastAPI, Django, PostgreSQL, Redis, message queues, Docker, and system design. Experience designing high-throughput APIs, caching layers, and database optimization.',
-  },
-  {
-    title: 'AI / ML Engineer',
-    jd: 'Looking for an AI/ML Engineer with strong skills in Python, PyTorch, TensorFlow, LLMs, NLP, RAG architectures, LangChain, vector databases, and fine-tuning. Experience deploying AI models into production.',
-  },
-  {
-    title: 'DevOps / Cloud Engineer',
-    jd: 'Hiring a DevOps Engineer experienced with AWS/GCP, Docker, Kubernetes, Terraform, CI/CD with GitHub Actions, Linux administration, Prometheus monitoring, and infrastructure as code.',
-  },
-]
 
 export default function ATSCheckerPage() {
   const { token } = useInterviewApp()
@@ -53,6 +33,7 @@ export default function ATSCheckerPage() {
   const [jobDescription, setJobDescription] = useState('')
   const [targetRole, setTargetRole] = useState('')
   const [loading, setLoading] = useState(false)
+  const [generatingTarget, setGeneratingTarget] = useState(false)
   const [error, setError] = useState('')
   const [result, setResult] = useState(null)
   const [copiedKey, setCopiedKey] = useState(false)
@@ -66,13 +47,55 @@ export default function ATSCheckerPage() {
         return
       }
       setResumeFile(file)
+      setJobDescription('')
+      setTargetRole('')
+      setResult(null)
       setError('')
     }
   }
 
-  const handleSelectPreset = (preset) => {
-    setTargetRole(preset.title)
-    setJobDescription(preset.jd)
+  const handleResumeTextChange = (event) => {
+    setResumeText(event.target.value)
+    setJobDescription('')
+    setTargetRole('')
+    setResult(null)
+  }
+
+  const handleGenerateTarget = async () => {
+    if (!token) {
+      setError('Please sign in to generate a target job description.')
+      return
+    }
+    if (!aiProcessingAcknowledged) {
+      setError('Please acknowledge AI processing before generating a target job description.')
+      return
+    }
+    if (inputMode === 'upload' && !resumeFile) {
+      setError('Please choose a PDF resume first.')
+      return
+    }
+    if (inputMode === 'text' && !resumeText.trim()) {
+      setError('Please paste your resume text first.')
+      return
+    }
+
+    setGeneratingTarget(true)
+    setError('')
+    setResult(null)
+    try {
+      const generated = await generateTargetJobDescription({
+        file: inputMode === 'upload' ? resumeFile : null,
+        resumeText: inputMode === 'text' ? resumeText : null,
+        aiProcessingAcknowledged,
+        token,
+      })
+      setTargetRole(generated.target_role)
+      setJobDescription(generated.job_description)
+    } catch (err) {
+      setError(getApiError(err, 'Could not generate a target job description from your resume.'))
+    } finally {
+      setGeneratingTarget(false)
+    }
   }
 
   const handleAnalyze = async (e) => {
@@ -89,8 +112,8 @@ export default function ATSCheckerPage() {
       setError('Please paste your resume text to scan.')
       return
     }
-    if (!jobDescription.trim() && !targetRole.trim()) {
-      setError('Please provide a target job description or choose a job role.')
+    if (!jobDescription.trim()) {
+      setError('Generate a target job description from your resume before running the ATS check.')
       return
     }
 
@@ -208,7 +231,7 @@ export default function ATSCheckerPage() {
                   <textarea
                     rows={10}
                     value={resumeText}
-                    onChange={(e) => setResumeText(e.target.value)}
+                    onChange={handleResumeTextChange}
                     placeholder="Paste your full resume text here including Summary, Skills, Experience, Projects, and Education..."
                     className="ats-textarea"
                   />
@@ -218,30 +241,46 @@ export default function ATSCheckerPage() {
 
             {/* Right Column: Job Description */}
             <div className="ats-input-box">
-              <div className="ats-box-header">
-                <h3>2. Target Job Description</h3>
-                <span className="ats-hint-note">Paste JD or pick a preset</span>
+              <div className="ats-box-header ats-jd-header">
+                <div>
+                  <h3>2. Target Job Description</h3>
+                  {targetRole && (
+                    <span className="ats-generated-role">Resume-based role: {targetRole}</span>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  className="button secondary ats-generate-jd-btn"
+                  disabled={
+                    generatingTarget
+                    || loading
+                    || !token
+                    || !aiProcessingAcknowledged
+                    || (inputMode === 'upload' ? !resumeFile : !resumeText.trim())
+                  }
+                  onClick={handleGenerateTarget}
+                >
+                  {generatingTarget ? (
+                    <>
+                      <Loader2 size={16} className="spin-icon" /> Generating…
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles size={16} /> Generate from resume
+                    </>
+                  )}
+                </button>
               </div>
-
-              <div className="ats-presets-row">
-                {PRESET_ROLES.map((preset) => (
-                  <button
-                    key={preset.title}
-                    type="button"
-                    className={`ats-preset-pill ${targetRole === preset.title ? 'active' : ''}`}
-                    onClick={() => handleSelectPreset(preset)}
-                  >
-                    {preset.title}
-                  </button>
-                ))}
-              </div>
-
+              <p className="ats-hint-note">
+                Add your resume, then generate an editable target description based on its experience and skills.
+              </p>
               <div className="ats-textarea-wrapper">
                 <textarea
                   rows={8}
                   value={jobDescription}
-                  onChange={(e) => setJobDescription(e.target.value)}
-                  placeholder="Paste the job requirements, responsibilities, or desired qualifications from the job posting..."
+                  onChange={(event) => setJobDescription(event.target.value)}
+                  disabled={!jobDescription || generatingTarget}
+                  placeholder="Your resume-based target job description will appear here. You can edit it before checking your ATS score."
                   className="ats-textarea"
                 />
               </div>
@@ -262,8 +301,8 @@ export default function ATSCheckerPage() {
               onChange={(event) => setAiProcessingAcknowledged(event.target.checked)}
             />
             <span>
-              I understand my resume and job description will be sent to this app's
-              configured AI provider for analysis. Depending on the provider, data
+              I understand my resume will be sent to this app's configured AI provider
+              to generate a target job description and analyze my ATS match. Depending on the provider, data
               may be processed outside this app; avoid submitting information you
               do not want to share.
             </span>
@@ -272,7 +311,13 @@ export default function ATSCheckerPage() {
           <div className="ats-action-row">
             <button
               type="submit"
-              disabled={loading || !token || !aiProcessingAcknowledged}
+              disabled={
+                loading
+                || generatingTarget
+                || !token
+                || !aiProcessingAcknowledged
+                || !jobDescription.trim()
+              }
               className="button primary ats-scan-btn"
             >
               {loading ? (

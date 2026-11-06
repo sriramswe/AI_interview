@@ -2484,6 +2484,45 @@ async def upload_resume(
         raise
 
 
+async def _get_ats_resume_text(file: UploadFile | None, resume_text: str | None):
+    extracted_text = (resume_text or "").strip()
+    filename = None
+    if file and file.filename:
+        filename = Path(file.filename).name
+        if Path(file.filename).suffix.lower() != ".pdf":
+            raise HTTPException(status_code=400, detail="Resume must be a PDF file.")
+        content = await file.read(MAX_RESUME_SIZE_BYTES + 1)
+        if len(content) > MAX_RESUME_SIZE_BYTES:
+            raise HTTPException(status_code=413, detail="Resume exceeds the 10 MB limit.")
+        if not content.startswith(b"%PDF-"):
+            raise HTTPException(status_code=400, detail="Uploaded file is not a valid PDF.")
+        extracted_text = await run_in_threadpool(_extract_resume_text, content)
+
+    if not extracted_text:
+        raise HTTPException(
+            status_code=400,
+            detail="Please provide a PDF resume or paste your resume text.",
+        )
+    return extracted_text, filename
+
+
+@app.post("/api/ats/generate-target")
+async def generate_ats_target_job_description(
+    file: UploadFile | None = File(None),
+    resume_text: str | None = Form(None),
+    ai_processing_acknowledged: bool = Form(False),
+    current_user: models.User = Depends(auth_utils.get_current_user),
+):
+    del current_user
+    if not ai_processing_acknowledged:
+        raise HTTPException(
+            status_code=400,
+            detail="Please acknowledge AI processing before generating a target job description.",
+        )
+    extracted_text, _ = await _get_ats_resume_text(file, resume_text)
+    return await gemini_service.generate_target_job_description(extracted_text)
+
+
 @app.post("/api/ats/analyze")
 async def analyze_ats_score(
     file: UploadFile | None = File(None),
@@ -2499,24 +2538,7 @@ async def analyze_ats_score(
             detail="Please acknowledge AI processing of your resume before analysis.",
         )
 
-    extracted_text = (resume_text or "").strip()
-    filename = None
-    if file and file.filename:
-        filename = Path(file.filename).name
-        if Path(file.filename).suffix.lower() != ".pdf":
-            raise HTTPException(status_code=400, detail="Resume must be a PDF file.")
-        content = await file.read(MAX_RESUME_SIZE_BYTES + 1)
-        if len(content) > MAX_RESUME_SIZE_BYTES:
-            raise HTTPException(status_code=413, detail="Resume exceeds the 10 MB limit.")
-        if not content.startswith(b"%PDF-"):
-            raise HTTPException(status_code=400, detail="Uploaded file is not a valid PDF.")
-        extracted_text = await run_in_threadpool(_extract_resume_text, content)
-
-    if not extracted_text.strip():
-        raise HTTPException(
-            status_code=400,
-            detail="Please provide a PDF resume or paste your resume text.",
-        )
+    extracted_text, filename = await _get_ats_resume_text(file, resume_text)
 
     result = await run_in_threadpool(
         calculate_detailed_ats_score,
