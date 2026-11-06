@@ -249,7 +249,7 @@ export default function GoogleMeetInterview({
     .toUpperCase()
 
   return (
-    <div className="meet-container">
+    <div className={`meet-container ${codingMode || interview.coding_gate_required ? 'coding-mode' : ''}`}>
       {/* Top Header Bar */}
       <header className="meet-topbar">
         <div className="meet-info-left">
@@ -460,7 +460,7 @@ export default function GoogleMeetInterview({
         </div>
 
         {/* Collapsible Right-Side Drawer */}
-        {activeDrawer && (
+        {activeDrawer && !codingMode && !interview.coding_gate_required && (
           <aside className="meet-side-drawer">
             <div className="meet-drawer-header">
               <h3>
@@ -740,7 +740,10 @@ export default function GoogleMeetInterview({
           <button
             type="button"
             className={`meet-ctrl-btn ${codingMode ? 'active' : ''}`}
-            onClick={() => setCodingMode((c) => !c)}
+            onClick={() => {
+              setCodingMode((current) => !current)
+              setActiveDrawer(null)
+            }}
             title="Screen share / Code editor"
           >
             <ScreenShare size={20} />

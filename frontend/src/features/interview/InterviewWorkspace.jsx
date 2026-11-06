@@ -128,7 +128,7 @@ export default function InterviewWorkspace() {
   // If user is in Google Meet mode and interview is not yet finished, show the Google Meet interface
   if (viewMode === 'meet' && !interview.finished) {
     return (
-      <section className="interview-meet-wrapper" style={{ width: '100%', maxWidth: '1400px', margin: '0 auto' }}>
+      <section className="interview-meet-wrapper">
         <GoogleMeetInterview
           interview={interview}
           busy={busy}
