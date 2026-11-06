@@ -3834,6 +3834,22 @@ input[aria-invalid="true"] {
     padding-top: 12px;
   }
 
+  .auth-shell,
+  .auth-card {
+    min-width: 0;
+  }
+
+  .auth-card {
+    width: 100%;
+    max-width: 100%;
+    padding: 20px;
+  }
+
+  .google-sign-in {
+    max-width: 100%;
+    overflow: hidden;
+  }
+
   .panel,
   .progress-panel,
   .ats-scanner-panel {
@@ -3850,5 +3866,38 @@ input[aria-invalid="true"] {
 
   .coding-heading h2 {
     font-size: 21px;
+  }
+}
+
+@media (max-width: 680px) {
+  .landing-header-inner {
+    height: auto;
+    min-height: 80px;
+    flex-wrap: wrap;
+    gap: 12px;
+    padding-block: 12px;
+  }
+
+  .landing-header-brand {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .landing-header-actions {
+    width: 100%;
+    justify-content: flex-end;
+    gap: 8px;
+  }
+
+  .landing-header-start-cta {
+    flex: 1 1 auto;
+    min-width: 0;
+    white-space: nowrap;
+  }
+
+  .landing-final-cta-button {
+    width: min(100%, 360px);
+    padding-inline: 16px;
+    font-size: 14px;
   }
 }

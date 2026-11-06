@@ -141,8 +141,8 @@ export default function LandingPage() {
     <div className="min-h-screen bg-[#0d0e15] text-slate-100 selection:bg-purple-500 selection:text-white font-sans overflow-x-hidden">
       {/* Sticky Header */}
       <header className="sticky top-0 z-50 backdrop-blur-xl bg-[#0d0e15]/85 border-b border-slate-800/80 transition-all">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-3 group">
+        <div className="landing-header-inner max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
+          <Link to="/" className="landing-header-brand flex items-center gap-3 group">
             <span className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center text-white font-black text-lg shadow-lg shadow-purple-500/25 group-hover:scale-105 transition-transform">
               <Zap size={20} className="fill-white" />
             </span>
@@ -213,7 +213,7 @@ export default function LandingPage() {
           </nav>
 
           {/* Action CTAs */}
-          <div className="flex items-center gap-4">
+          <div className="landing-header-actions flex items-center gap-4">
             <Link
               to={destination}
               className="text-sm font-semibold text-slate-300 hover:text-white px-3 py-2 rounded-lg hover:bg-slate-800/60 transition-colors"
@@ -222,7 +222,7 @@ export default function LandingPage() {
             </Link>
             <Link
               to={startDestination}
-              className="relative inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm text-white bg-gradient-to-r from-purple-600 via-indigo-600 to-pink-600 hover:from-purple-500 hover:via-indigo-500 hover:to-pink-500 shadow-lg shadow-purple-600/30 hover:shadow-purple-600/50 hover:scale-[1.02] active:scale-[0.98] transition-all"
+              className="landing-header-start-cta relative inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm text-white bg-gradient-to-r from-purple-600 via-indigo-600 to-pink-600 hover:from-purple-500 hover:via-indigo-500 hover:to-pink-500 shadow-lg shadow-purple-600/30 hover:shadow-purple-600/50 hover:scale-[1.02] active:scale-[0.98] transition-all"
             >
               <span>Start Free Practice</span>
               <ArrowRight size={16} />
@@ -944,7 +944,7 @@ export default function LandingPage() {
           </p>
           <Link
             to={startDestination}
-            className="inline-flex items-center justify-center gap-2 px-9 py-4 rounded-xl font-extrabold text-base text-white bg-gradient-to-r from-purple-600 via-indigo-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 shadow-xl shadow-purple-600/40 hover:scale-[1.03] transition-all"
+            className="landing-final-cta-button w-full sm:w-auto max-w-full inline-flex items-center justify-center gap-2 px-5 sm:px-9 py-4 rounded-xl font-extrabold text-base text-white bg-gradient-to-r from-purple-600 via-indigo-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 shadow-xl shadow-purple-600/40 hover:scale-[1.03] transition-all"
           >
             <span>Start Your Free Practice Now</span>
             <ArrowRight size={18} />
