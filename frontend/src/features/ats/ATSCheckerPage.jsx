@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import {
   AlertCircle,
@@ -38,6 +38,7 @@ export default function ATSCheckerPage() {
   const [result, setResult] = useState(null)
   const [copiedKey, setCopiedKey] = useState(false)
   const [aiProcessingAcknowledged, setAiProcessingAcknowledged] = useState(false)
+  const generationRequestRef = useRef(false)
 
   const handleFileChange = (e) => {
     const file = e.target.files?.[0]
@@ -51,6 +52,13 @@ export default function ATSCheckerPage() {
       setTargetRole('')
       setResult(null)
       setError('')
+      if (aiProcessingAcknowledged) {
+        handleGenerateTarget({
+          sourceMode: 'upload',
+          sourceFile: file,
+          sourceText: '',
+        })
+      }
     }
   }
 
@@ -61,40 +69,39 @@ export default function ATSCheckerPage() {
     setResult(null)
   }
 
-  const handleInputModeChange = (mode) => {
-    setInputMode(mode)
-    setJobDescription('')
-    setTargetRole('')
-    setResult(null)
-    setError('')
-  }
-
-  const handleGenerateTarget = async () => {
+  const handleGenerateTarget = async ({
+    sourceMode = inputMode,
+    sourceFile = resumeFile,
+    sourceText = resumeText,
+    acknowledged = aiProcessingAcknowledged,
+  } = {}) => {
+    if (generationRequestRef.current) return
     if (!token) {
       setError('Please sign in to generate a target job description.')
       return
     }
-    if (!aiProcessingAcknowledged) {
+    if (!acknowledged) {
       setError('Please acknowledge AI processing before generating a target job description.')
       return
     }
-    if (inputMode === 'upload' && !resumeFile) {
+    if (sourceMode === 'upload' && !sourceFile) {
       setError('Please choose a PDF resume first.')
       return
     }
-    if (inputMode === 'text' && !resumeText.trim()) {
+    if (sourceMode === 'text' && !sourceText.trim()) {
       setError('Please paste your resume text first.')
       return
     }
 
+    generationRequestRef.current = true
     setGeneratingTarget(true)
     setError('')
     setResult(null)
     try {
       const generated = await generateTargetJobDescription({
-        file: inputMode === 'upload' ? resumeFile : null,
-        resumeText: inputMode === 'text' ? resumeText : null,
-        aiProcessingAcknowledged,
+        file: sourceMode === 'upload' ? sourceFile : null,
+        resumeText: sourceMode === 'text' ? sourceText : null,
+        aiProcessingAcknowledged: acknowledged,
         token,
       })
       setTargetRole(generated.target_role)
@@ -102,8 +109,19 @@ export default function ATSCheckerPage() {
     } catch (err) {
       setError(getApiError(err, 'Could not generate a target job description from your resume.'))
     } finally {
+      generationRequestRef.current = false
       setGeneratingTarget(false)
     }
+  }
+
+  const handleInputModeChange = (mode) => {
+    setInputMode(mode)
+    setResumeFile(null)
+    setResumeText('')
+    setJobDescription('')
+    setTargetRole('')
+    setResult(null)
+    setError('')
   }
 
   const handleAnalyze = async (e) => {
@@ -194,6 +212,7 @@ export default function ATSCheckerPage() {
                 <div className="ats-tab-switch">
                   <button
                     type="button"
+                    disabled={generatingTarget}
                     className={`ats-tab-btn ${inputMode === 'upload' ? 'active' : ''}`}
                     onClick={() => handleInputModeChange('upload')}
                   >
@@ -201,6 +220,7 @@ export default function ATSCheckerPage() {
                   </button>
                   <button
                     type="button"
+                    disabled={generatingTarget}
                     className={`ats-tab-btn ${inputMode === 'text' ? 'active' : ''}`}
                     onClick={() => handleInputModeChange('text')}
                   >
@@ -216,6 +236,7 @@ export default function ATSCheckerPage() {
                     id="ats-resume-file"
                     accept=".pdf,application/pdf"
                     onChange={handleFileChange}
+                    disabled={generatingTarget}
                     className="ats-file-hidden"
                   />
                   <label htmlFor="ats-resume-file" className="ats-dropzone-label">
@@ -240,6 +261,12 @@ export default function ATSCheckerPage() {
                     rows={10}
                     value={resumeText}
                     onChange={handleResumeTextChange}
+                    disabled={generatingTarget}
+                    onBlur={() => {
+                      if (aiProcessingAcknowledged && resumeText.trim() && !jobDescription) {
+                        handleGenerateTarget({ sourceMode: 'text', sourceText: resumeText })
+                      }
+                    }}
                     placeholder="Paste your full resume text here including Summary, Skills, Experience, Projects, and Education..."
                     className="ats-textarea"
                   />
@@ -274,7 +301,7 @@ export default function ATSCheckerPage() {
                     </>
                   ) : (
                     <>
-                      <Sparkles size={16} /> Generate from resume
+                      <Sparkles size={16} /> {jobDescription ? 'Regenerate from resume' : 'Generate from resume'}
                     </>
                   )}
                 </button>
@@ -306,7 +333,17 @@ export default function ATSCheckerPage() {
             <input
               type="checkbox"
               checked={aiProcessingAcknowledged}
-              onChange={(event) => setAiProcessingAcknowledged(event.target.checked)}
+              onChange={(event) => {
+                const acknowledged = event.target.checked
+                setAiProcessingAcknowledged(acknowledged)
+                if (
+                  acknowledged
+                  && (inputMode === 'upload' ? resumeFile : resumeText.trim())
+                  && !jobDescription
+                ) {
+                  handleGenerateTarget({ acknowledged })
+                }
+              }}
             />
             <span>
               I understand my resume will be sent to this app's configured AI provider
