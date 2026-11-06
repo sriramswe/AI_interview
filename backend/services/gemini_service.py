@@ -3,6 +3,7 @@ from contextvars import ContextVar
 import json
 import logging
 import os
+import re
 from typing import Any
 
 import httpx
@@ -135,7 +136,7 @@ class AIService:
         ollama_model: str | None = None,
         json_mode: bool = False,
     ) -> str:
-        provider = os.getenv("AI_PROVIDER", "ollama").strip().lower()
+        provider = os.getenv("AI_PROVIDER", "openrouter").strip().lower()
         _generation_route.set(f"{provider.title()} provider")
         timeout_seconds = float(os.getenv("AI_TIMEOUT_SECONDS", "120"))
         timeout = httpx.Timeout(timeout_seconds)
@@ -151,41 +152,44 @@ class AIService:
                     _generation_route.set(
                         f"Ollama ({ollama_model or os.getenv('OLLAMA_MODEL', 'qwen2.5:7b')})"
                     )
-                elif provider == "gemini":
-                    api_key = os.getenv("GEMINI_API_KEY")
-                    if not api_key:
-                        raise RuntimeError(
-                            "GEMINI_API_KEY is required when AI_PROVIDER=gemini."
-                        )
-                    model = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
-                    _generation_route.set(f"Gemini ({model})")
-                    response = await client.post(
-                        f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
-                        headers={"x-goog-api-key": api_key},
-                        json={
-                            "contents": [{"parts": [{"text": prompt}]}],
-                            "generationConfig": {"temperature": 0.4},
-                        },
-                    )
-                    response.raise_for_status()
-                    candidates = response.json().get("candidates", [])
-                    result = None
-                    if isinstance(candidates, list):
-                        for candidate in candidates:
-                            content = (
-                                candidate.get("content")
-                                if isinstance(candidate, dict)
-                                else None
-                            )
-                            if not isinstance(content, dict):
-                                continue
-                            candidate_text = _extract_text(
-                                content.get("parts"),
-                                skip_thoughts=True,
-                            )
-                            if candidate_text.strip():
-                                result = candidate_text
-                                break
+                #   elif provider == "gemini":
+                #     api_key = os.getenv("GEMINI_API_KEY")
+                #     if not api_key:
+                #         raise RuntimeError(
+                #             "GEMINI_API_KEY is required when AI_PROVIDER=gemini."
+                #         )
+                #     model = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
+                #     _generation_route.set(f"Gemini ({model})")
+                #     generation_config = {"temperature": 0.1 if json_mode else 0.4}
+                #     if json_mode:
+                #         generation_config["responseMimeType"] = "application/json"
+                #     response = await client.post(
+                #         f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
+                #         headers={"x-goog-api-key": api_key},
+                #         json={
+                #             "contents": [{"parts": [{"text": prompt}]}],
+                #             "generationConfig": generation_config,
+                #         },
+                #     )
+                #     response.raise_for_status()
+                #     candidates = response.json().get("candidates", [])
+                #     result = None
+                #     if isinstance(candidates, list):
+                #         for candidate in candidates:
+                #             content = (
+                #                 candidate.get("content")
+                #                 if isinstance(candidate, dict)
+                #                 else None
+                #             )
+                #             if not isinstance(content, dict):
+                #                 continue
+                #             candidate_text = _extract_text(
+                #                 content.get("parts"),
+                #                 skip_thoughts=True,
+                #             )
+                #             if candidate_text.strip():
+                #                 result = candidate_text
+                #                 break
                 elif provider == "openrouter":
                     api_key = os.getenv("OPENROUTER_API_KEY")
                     if not api_key:
@@ -256,15 +260,17 @@ class AIService:
                             failed_models.append(candidate_model)
                             openrouter_unavailable = True
                             logger.warning(
-                                "OpenRouter request timed out; using local Ollama fallback"
+                                "OpenRouter request timed out (model=%s)",
+                                candidate_model,
                             )
                             break
                         except httpx.TransportError as error:
                             failed_models.append(candidate_model)
                             openrouter_unavailable = True
                             logger.warning(
-                                "OpenRouter transport failed (%s); using local Ollama fallback",
+                                "OpenRouter transport failed (%s, model=%s)",
                                 type(error).__name__,
+                                candidate_model,
                             )
                             break
                         if response.status_code == 429:
@@ -315,42 +321,16 @@ class AIService:
                             finish_reason or "unavailable",
                         )
                     if result is None:
-                        fallback_enabled = os.getenv(
-                            "OPENROUTER_OLLAMA_FALLBACK", "true"
-                        ).strip().casefold() not in {"0", "false", "no", "off"}
-                        if fallback_enabled:
-                            logger.warning(
-                                "OpenRouter unavailable after trying %s; falling back to Ollama",
-                                ", ".join(failed_models),
-                            )
-                            try:
-                                result = await self._generate_with_ollama(
-                                    client,
-                                    prompt,
-                                    ollama_options=ollama_options,
-                                    ollama_model=ollama_model,
-                                )
-                                _generation_route.set(
-                                    "Ollama fallback "
-                                    f"({ollama_model or os.getenv('OLLAMA_MODEL', 'qwen2.5:7b')})"
-                                )
-                            except (httpx.HTTPError, AIProviderTimeout, RuntimeError) as error:
-                                raise RuntimeError(
-                                    "OpenRouter was rate-limited or unavailable, "
-                                    "and the configured Ollama fallback failed. "
-                                    f"Your submitted answer is saved. Ollama error: {error}"
-                                ) from error
-                        else:
-                            reason = (
-                                "OpenRouter connection failed"
-                                if openrouter_unavailable
-                                else "all configured models were rate-limited or returned no text"
-                            )
-                            raise RuntimeError(
-                                f"OpenRouter could not generate an answer: {reason} "
-                                f"({', '.join(failed_models)}). Your submitted answer "
-                                "is saved. Retry now, or edit and resubmit it."
-                            )
+                        reason = (
+                            "OpenRouter connection failed"
+                            if openrouter_unavailable
+                            else "all configured models were rate-limited or returned no text"
+                        )
+                        raise RuntimeError(
+                            f"OpenRouter could not generate an answer: {reason} "
+                            f"({', '.join(failed_models)}). Your submitted answer "
+                            "is saved. Retry now, or edit and resubmit it."
+                        )
                 else:
                     raise RuntimeError(
                         "AI_PROVIDER must be 'ollama', 'gemini', or 'openrouter'."
@@ -507,7 +487,11 @@ settings, account data, prices, or actions.
             raise RuntimeError("The AI provider returned an invalid resume assessment.")
 
         score = prediction.get("match_score")
-        if isinstance(score, bool) or not isinstance(score, (int, float)) or not 0 <= score <= 100:
+        if (
+            isinstance(score, bool)
+            or not isinstance(score, (int, float))
+            or not 0 <= score <= 100
+        ):
             raise RuntimeError("The AI provider returned an invalid resume match score.")
 
         def read_text_list(key: str, limit: int) -> list[str]:
@@ -540,6 +524,10 @@ settings, account data, prices, or actions.
                 raise RuntimeError("The AI provider returned an invalid bullet rewrite.")
             if " ".join(original.casefold().split()) not in resume_normalized:
                 continue
+            source_numbers = set(re.findall(r"\b\d+(?:[.,]\d+)?%?\b", original))
+            suggested_numbers = set(re.findall(r"\b\d+(?:[.,]\d+)?%?\b", improved))
+            if not suggested_numbers.issubset(source_numbers):
+                continue
             bullet_rewrites.append(
                 {
                     "original": original.strip()[:500],
@@ -552,8 +540,10 @@ settings, account data, prices, or actions.
         return {
             "match_score": score,
             "match_level": (
-                "Strong alignment" if score >= 75
-                else "Partial alignment" if score >= 50
+                "Strong alignment"
+                if score >= 75
+                else "Partial alignment"
+                if score >= 50
                 else "Limited alignment"
             ),
             "summary": summary.strip()[:500],

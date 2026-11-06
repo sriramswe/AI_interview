@@ -2,13 +2,9 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import {
   AlertCircle,
-  ArrowRight,
   Award,
   CheckCircle2,
-  ChevronRight,
   Clipboard,
-  FileCheck,
-  FileText,
   Loader2,
   RefreshCw,
   Sparkles,
@@ -48,7 +44,7 @@ const PRESET_ROLES = [
 ]
 
 export default function ATSCheckerPage() {
-  const { subscription, token } = useInterviewApp()
+  const { token } = useInterviewApp()
   const navigate = useNavigate()
 
   const [inputMode, setInputMode] = useState('upload') // 'upload' | 'text'
@@ -60,10 +56,7 @@ export default function ATSCheckerPage() {
   const [error, setError] = useState('')
   const [result, setResult] = useState(null)
   const [copiedKey, setCopiedKey] = useState(false)
-  const [analysesCompleted, setAnalysesCompleted] = useState(0)
-  const analysesRemaining = subscription?.resume_analyses_remaining == null
-    ? null
-    : Math.max(0, subscription.resume_analyses_remaining - analysesCompleted)
+  const [aiProcessingAcknowledged, setAiProcessingAcknowledged] = useState(false)
 
   const handleFileChange = (e) => {
     const file = e.target.files?.[0]
@@ -84,6 +77,10 @@ export default function ATSCheckerPage() {
 
   const handleAnalyze = async (e) => {
     e?.preventDefault()
+    if (!aiProcessingAcknowledged) {
+      setError('Please acknowledge that your resume will be processed by the configured AI provider.')
+      return
+    }
     if (inputMode === 'upload' && !resumeFile) {
       setError('Please choose a PDF resume to scan.')
       return
@@ -107,10 +104,10 @@ export default function ATSCheckerPage() {
         resumeText: inputMode === 'text' ? resumeText : null,
         jobDescription: jobDescription.trim(),
         targetRole: targetRole.trim(),
+        aiProcessingAcknowledged,
         token,
       })
       setResult(data)
-      setAnalysesCompleted((count) => count + 1)
     } catch (err) {
       setError(getApiError(err, 'Could not analyze resume. Please check your file or try again.'))
     } finally {
@@ -140,20 +137,16 @@ export default function ATSCheckerPage() {
       <section className="ats-hero-card">
         <div className="ats-hero-content">
           <div className="ats-badge">
-            <Sparkles size={16} /> AI-Powered ATS Resume Scanner
+            <Sparkles size={16} /> ATS Score + AI Role Match
           </div>
           <h1>Optimize Your Resume for Applicant Tracking Systems</h1>
           <p className="ats-hero-subtitle">
-            Scan your resume against any job description. Uncover missing keywords,
-            formatting red flags, and quantifiable impact scores before recruiters do.
+            Get a rule-based ATS compatibility score and an AI-estimated role match,
+            with evidence-grounded strengths, gaps, and improvement ideas.
           </p>
           {!token ? (
             <p className="fine-print">
-              <Link to={LOGIN_PATH}>Sign in</Link> to analyze a resume with your monthly plan allowance.
-            </p>
-          ) : analysesRemaining != null ? (
-            <p className="fine-print">
-              {analysesRemaining} resume {analysesRemaining === 1 ? 'analysis' : 'analyses'} left this month.
+              <Link to={LOGIN_PATH}>Sign in</Link> to analyze your resume.
             </p>
           ) : null}
         </div>
@@ -262,10 +255,24 @@ export default function ATSCheckerPage() {
             </div>
           )}
 
+          <label className="ats-privacy-consent">
+            <input
+              type="checkbox"
+              checked={aiProcessingAcknowledged}
+              onChange={(event) => setAiProcessingAcknowledged(event.target.checked)}
+            />
+            <span>
+              I understand my resume and job description will be sent to this app's
+              configured AI provider for analysis. Depending on the provider, data
+              may be processed outside this app; avoid submitting information you
+              do not want to share.
+            </span>
+          </label>
+
           <div className="ats-action-row">
             <button
               type="submit"
-              disabled={loading || !token || analysesRemaining === 0}
+              disabled={loading || !token || !aiProcessingAcknowledged}
               className="button primary ats-scan-btn"
             >
               {loading ? (
@@ -320,10 +327,10 @@ export default function ATSCheckerPage() {
               <h2>{result.verdict}</h2>
               <p className="ats-verdict-desc">
                 {result.ats_score >= 80
-                  ? 'Great job! Your resume demonstrates strong keyword alignment and structure for this role.'
+                  ? 'Your resume has strong rule-based keyword alignment and structure for this role.'
                   : result.ats_score >= 60
-                  ? 'Your resume is competitive, but targeted keyword and metric enhancements will significantly improve ATS pass-through.'
-                  : 'We detected critical skill gaps and formatting areas to address before submitting your application.'}
+                    ? 'Your resume is competitive, but targeted keyword and metric improvements may help.'
+                    : 'We detected skill gaps and formatting areas to address before applying.'}
               </p>
 
               <div className="ats-action-buttons">
@@ -347,6 +354,56 @@ export default function ATSCheckerPage() {
               </div>
             </div>
           </div>
+
+          {result.ai_match_prediction && (
+            <section className="ats-ai-match-card" aria-labelledby="ats-ai-match-heading">
+              <div className="ats-ai-match-header">
+                <div>
+                  <span className="ats-ai-match-label">
+                    <Sparkles size={16} /> AI estimate
+                  </span>
+                  <h2 id="ats-ai-match-heading">Role match: {result.ai_match_prediction.match_level}</h2>
+                </div>
+                <strong className="ats-ai-match-score">
+                  {result.ai_match_prediction.match_score}<small>/100</small>
+                </strong>
+              </div>
+              <p className="ats-ai-match-summary">{result.ai_match_prediction.summary}</p>
+              <div className="ats-ai-match-columns">
+                <div>
+                  <h3>Relevant strengths</h3>
+                  {result.ai_match_prediction.strengths.length ? (
+                    <ul>{result.ai_match_prediction.strengths.map((item, index) => <li key={index}>{item}</li>)}</ul>
+                  ) : <p>No clear strengths identified from the supplied information.</p>}
+                </div>
+                <div>
+                  <h3>Potential gaps</h3>
+                  {result.ai_match_prediction.gaps.length ? (
+                    <ul>{result.ai_match_prediction.gaps.map((item, index) => <li key={index}>{item}</li>)}</ul>
+                  ) : <p>No major gaps identified from the supplied information.</p>}
+                </div>
+              </div>
+              {result.ai_match_prediction.recommendations.length > 0 && (
+                <div className="ats-ai-recommendations">
+                  <h3>Suggested next steps</h3>
+                  <ul>{result.ai_match_prediction.recommendations.map((item, index) => <li key={index}>{item}</li>)}</ul>
+                </div>
+              )}
+              {result.ai_match_prediction.bullet_rewrites.length > 0 && (
+                <div className="ats-ai-rewrites">
+                  <h3>Evidence-based bullet rewrites</h3>
+                  {result.ai_match_prediction.bullet_rewrites.map((item, index) => (
+                    <article key={index}>
+                      <p><strong>Current:</strong> {item.original}</p>
+                      <p><strong>Suggested:</strong> {item.improved}</p>
+                      <small>{item.rationale}</small>
+                    </article>
+                  ))}
+                </div>
+              )}
+              <p className="ats-ai-disclaimer">{result.ai_match_prediction.disclaimer}</p>
+            </section>
+          )}
 
           {/* Breakdown Score Cards */}
           <div className="ats-metrics-grid">
@@ -494,35 +551,6 @@ export default function ATSCheckerPage() {
             </div>
           )}
 
-          {/* STAR Bullet Point Optimization Examples */}
-          {result.bullet_optimizations?.length > 0 && (
-            <div className="ats-optimizations-box">
-              <div className="ats-box-title">
-                <Sparkles size={20} />
-                <h3>Recommended STAR Bullet Point Optimizations</h3>
-              </div>
-              <p className="ats-subtext">
-                Transform passive statements into high-scoring impact statements with metrics:
-              </p>
-              <div className="ats-bullets-grid">
-                {result.bullet_optimizations.map((item, idx) => (
-                  <div key={idx} className="ats-bullet-card">
-                    <div className="ats-bullet-before">
-                      <span className="ats-bullet-tag before">Before</span>
-                      <p>"{item.original}"</p>
-                    </div>
-                    <div className="ats-bullet-arrow">
-                      <ArrowRight size={18} />
-                    </div>
-                    <div className="ats-bullet-after">
-                      <span className="ats-bullet-tag after">Optimized (STAR)</span>
-                      <p>"{item.improved}"</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
         </section>
       )}
     </main>

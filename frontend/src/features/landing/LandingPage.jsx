@@ -98,7 +98,7 @@ const FAQS = [
   },
   {
     q: 'How does the ATS Resume Checker score my resume?',
-    a: 'Our ATS engine scans your resume text against targeted job descriptions using semantic matching. It evaluates keyword alignment, section completeness, quantifiable metrics (percentages, numbers, throughput), strong action verbs, and formatting readability to ensure your resume passes ATS screening.',
+    a: 'The ATS Resume Checker is available without a monthly usage limit on every plan. It provides a rule-based compatibility score and an AI-estimated role match; results are estimates, not a hiring guarantee.',
   },
   {
     q: 'Can I practice live coding assessments?',
@@ -106,7 +106,7 @@ const FAQS = [
   },
   {
     q: 'What is the pricing model in India and globally?',
-    a: 'Free includes 3 mock interviews and 1 resume analysis per month. Pro is ₹299/month for 20 interviews, 5 analyses, detailed feedback, and 30 company-specific questions. Elite is ₹599/month with unlimited interviews, analyses, and company-specific questions plus an improvement roadmap. Elite also includes unlimited resume builds and uploaded-resume customization.',
+    a: 'Every plan includes unlimited ATS resume checks. Free includes 3 mock interviews and 1 interview resume analysis per month. Pro is ₹299/month for 20 interviews, 5 interview resume analyses, detailed feedback, and 30 company-specific questions. Elite is ₹599/month with unlimited interviews, resume analyses, and company-specific questions plus an improvement roadmap. Elite also includes unlimited resume builds and uploaded-resume customization.',
   },
 ]
 
@@ -744,9 +744,9 @@ export default function LandingPage() {
                   <span className="text-4xl font-extrabold text-white">{currency === 'INR' ? '₹0' : '$0'}</span>
                   <span className="text-slate-400 text-sm ml-2">/ forever</span>
                 </div>
-                <p className="text-xs text-slate-400 mb-6">Start interview practice and get a monthly resume analysis.</p>
+                <p className="text-xs text-slate-400 mb-6">Start interview practice with unlimited ATS resume checks.</p>
                 <ul className="space-y-3 text-xs sm:text-sm text-slate-300 mb-8">
-                  <li className="flex items-center gap-2"><Check size={16} className="text-emerald-400" /> ATS resume scanner · 1 analysis/month</li>
+                  <li className="flex items-center gap-2"><Check size={16} className="text-emerald-400" /> Unlimited ATS resume checks</li>
                   <li className="flex items-center gap-2"><Check size={16} className="text-emerald-400" /> 3 mock interviews per month</li>
                   <li className="flex items-center gap-2"><Check size={16} className="text-emerald-400" /> Basic AI feedback</li>
                   <li className="flex items-center gap-2"><Check size={16} className="text-emerald-400" /> 1 resume analysis per month</li>
@@ -777,7 +777,7 @@ export default function LandingPage() {
                 <ul className="space-y-3 text-xs sm:text-sm text-slate-200 mb-8">
                   <li className="flex items-center gap-2"><Check size={16} className="text-purple-400" /> 20 mock interviews per month</li>
                   <li className="flex items-center gap-2"><Check size={16} className="text-purple-400" /> Detailed AI feedback</li>
-                  <li className="flex items-center gap-2"><Check size={16} className="text-purple-400" /> 5 resume analyses per month</li>
+                  <li className="flex items-center gap-2"><Check size={16} className="text-purple-400" /> Unlimited ATS checks + 5 interview resume analyses/month</li>
                   <li className="flex items-center gap-2"><Check size={16} className="text-purple-400" /> Up to 30 company-specific questions per month</li>
                   <li className="flex items-center gap-2"><Check size={16} className="text-purple-400" /> Real-Time Voice Speech Recognition</li>
                   <li className="flex items-center gap-2"><Check size={16} className="text-purple-400" /> Monaco Live Coding Assessment</li>
@@ -804,7 +804,7 @@ export default function LandingPage() {
                 <ul className="space-y-3 text-xs sm:text-sm text-slate-300 mb-8">
                   <li className="flex items-center gap-2"><Check size={16} className="text-emerald-400" /> Unlimited mock interviews</li>
                   <li className="flex items-center gap-2"><Check size={16} className="text-emerald-400" /> Detailed feedback + improvement roadmap</li>
-                  <li className="flex items-center gap-2"><Check size={16} className="text-emerald-400" /> Unlimited resume analyses</li>
+                  <li className="flex items-center gap-2"><Check size={16} className="text-emerald-400" /> Unlimited ATS checks and interview resume analyses</li>
                   <li className="flex items-center gap-2"><Check size={16} className="text-emerald-400" /> Unlimited company-specific questions</li>
                   <li className="flex items-center gap-2"><Check size={16} className="text-emerald-400" /> Multi-Interviewer Panel Simulations</li>
                   <li className="flex items-center gap-2"><Check size={16} className="text-emerald-400" /> Master Recruiter Performance PDF</li>

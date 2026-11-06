@@ -5,6 +5,7 @@ export async function analyzeAtsScore({
   resumeText,
   jobDescription,
   targetRole,
+  aiProcessingAcknowledged,
   token,
 }) {
   const formData = new FormData()
@@ -20,6 +21,7 @@ export async function analyzeAtsScore({
   if (targetRole) {
     formData.append('target_role', targetRole)
   }
+  formData.append('ai_processing_acknowledged', String(aiProcessingAcknowledged))
 
   const headers = token ? authHeaders(token) : {}
   const { data } = await api.post('/api/ats/analyze', formData, {
@@ -27,4 +29,3 @@ export async function analyzeAtsScore({
   })
   return data
 }
-

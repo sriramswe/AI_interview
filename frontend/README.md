@@ -30,6 +30,10 @@ The backend must allow the deployed frontend origin in its `CORS_ORIGINS` settin
 
 Signed-in users can create up to three saved resumes with templates for free. Active Elite and grandfathered legacy resume subscriptions allow unlimited builds and are required to upload and customize an existing PDF. The backend enforces these limits and stores build usage per account. Resume PDFs are produced from the browser print dialog using “Save as PDF.”
 
+## ATS resume analysis
+
+The ATS checker combines a rule-based compatibility score with an AI-estimated role match and has no monthly analysis limit. The AI assessment is an estimate, not a hiring probability or guarantee. Resume and job-description text are sent to the backend's configured AI provider; users must acknowledge this before analysis.
+
 ## Plan quotas
 
-Free includes 3 mock interviews and 1 resume analysis per calendar month, with basic AI feedback and no company-specific questions. Pro is ₹299/month and includes 20 interviews, 5 resume analyses, detailed feedback, and 30 company-specific questions per month. Elite is ₹599/month and includes unlimited interviews, resume analyses, and company-specific questions, with detailed feedback and an improvement roadmap.
+All plans include unlimited ATS checks. Free includes 3 mock interviews and 1 interview resume analysis per calendar month, with basic AI feedback and no company-specific questions. Pro is ₹299/month and includes 20 interviews, 5 interview resume analyses, detailed feedback, and 30 company-specific questions per month. Elite is ₹599/month and includes unlimited interviews, interview resume analyses, and company-specific questions, with detailed feedback and an improvement roadmap.

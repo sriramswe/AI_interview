@@ -134,15 +134,15 @@ export default function CandidateOnboardingPage() {
             <legend>Choose how to start</legend>
             <label className={accessPlan === 'free' ? 'selected' : ''}>
               <input checked={accessPlan === 'free'} name="access-plan" onChange={() => setAccessPlan('free')} type="radio" />
-              <span><strong>Free practice</strong><small>3 interviews and 1 resume analysis per month with basic feedback.</small></span>
+              <span><strong>Free practice</strong><small>3 interviews and 1 interview resume analysis per month with basic feedback; ATS checks are unlimited.</small></span>
             </label>
             <label className={accessPlan === 'pro' ? 'selected' : ''}>
               <input checked={accessPlan === 'pro'} name="access-plan" onChange={() => setAccessPlan('pro')} type="radio" />
-              <span><strong>Pro · ₹299 / month</strong><small>20 interviews, detailed feedback, 5 resume analyses, and 30 company-specific questions monthly.</small></span>
+              <span><strong>Pro · ₹299 / month</strong><small>20 interviews, detailed feedback, 5 interview resume analyses, unlimited ATS checks, and 30 company-specific questions monthly.</small></span>
             </label>
             <label className={accessPlan === 'elite' ? 'selected' : ''}>
               <input checked={accessPlan === 'elite'} name="access-plan" onChange={() => setAccessPlan('elite')} type="radio" />
-              <span><strong>Elite · ₹599 / month</strong><small>Unlimited interviews, resume analyses, and company-specific questions, plus a learning roadmap.</small></span>
+              <span><strong>Elite · ₹599 / month</strong><small>Unlimited interviews, resume analyses, ATS checks, and company-specific questions, plus a learning roadmap.</small></span>
             </label>
           </fieldset>
           {error && <p className="notice error" role="alert">{error}</p>}

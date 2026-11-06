@@ -9,13 +9,12 @@ The root `render.yaml` defines a Python web service rooted at `backend`. Create 
 - `OPENROUTER_API_KEY`: required when using OpenRouter; keep it in backend environment settings, never in frontend variables.
 - `OPENROUTER_MODEL`: optional model override; local and Render defaults use `google/gemma-4-31b-it:free`, currently listed in OpenRouter's free catalog.
 - `OPENROUTER_FALLBACK_MODELS`: comma-separated alternate models tried when the primary is rate-limited or returns no text.
-- `OPENROUTER_OLLAMA_FALLBACK`: set to `true` when the backend host has a reachable Ollama server; local config enables this by default.
 - `OPENROUTER_SITE_URL`: optional OpenRouter attribution URL.
 - `GEMINI_API_KEY`: required only when `AI_PROVIDER=gemini`.
 - `GOOGLE_CLIENT_ID`: OAuth client ID for backend token verification when using Google sign-in.
 - `SUPER_ADMIN_EMAILS`: comma-separated email allowlist for super-admin accounts. Matching accounts receive the persisted `admin` role at startup and can assign `user`/`admin` roles. Other accounts may be promoted to admin by a super-admin in the admin user table; do not remove the last trusted super-admin.
 - `UPI_ID`, `UPI_PAYEE_NAME`, and `PAYMENT_REVIEWER_EMAILS`: required to enable manual UPI payments and review. Use the merchant's verified receiving UPI ID and an inbox belonging to an authorized reviewer. Keep the receiving ID in backend environment settings, not frontend variables or source control. Configure `SUPER_ADMIN_EMAILS` for the reviewer who will approve/reject receipts.
-- `AI_PROVIDER` and the selected provider's settings: required for the project help chatbot and other AI features.
+- `AI_PROVIDER` defaults to `openrouter`; configure `OPENROUTER_API_KEY` for the project help chatbot and other AI features. Use `ollama` or `gemini` only when explicitly choosing those providers.
 
 ### Production CI/CD with GitHub Actions
 
@@ -53,7 +52,7 @@ The authenticated project-help chat uses the configured backend AI provider. Sup
 
 ## Model and browser feature requirements
 
-- Set `AI_PROVIDER=openrouter` and configure `OPENROUTER_API_KEY` to use the configured OpenRouter model. The default free Gemma model can be overridden with `OPENROUTER_MODEL`; comma-separated alternates are configured with `OPENROUTER_FALLBACK_MODELS`. The backend tries these in sequence if a model is rate-limited or returns no text, then uses local Ollama when `OPENROUTER_OLLAMA_FALLBACK=true`. On hosted services without Ollama, leave this disabled. This sends AI prompts, including interview and resume text, to OpenRouter for processing; free model availability and rate limits can change. For Gemini, configure `GEMINI_API_KEY`. For Ollama/LoRA, select `AI_PROVIDER=ollama` and make its model or adapter available to the backend's Ollama service; adapter weights are not included in this repository.
+- Set `AI_PROVIDER=openrouter` and configure `OPENROUTER_API_KEY` to use the configured OpenRouter model. OpenRouter is the default provider; there is no Ollama fallback. The default free Gemma model can be overridden with `OPENROUTER_MODEL`; comma-separated OpenRouter alternates are configured with `OPENROUTER_FALLBACK_MODELS`. The backend tries these in sequence if a model is rate-limited or returns no text, and reports an error if all options fail. This sends AI prompts, including interview and resume text, to OpenRouter for processing; free model availability and rate limits can change. For Gemini, configure `GEMINI_API_KEY`. For Ollama/LoRA, select `AI_PROVIDER=ollama` explicitly and make its model or adapter available to the backend's Ollama service; adapter weights are not included in this repository.
 - MySQL stores interview history and relational data. Interview answers are evaluated using the configured backend NLP/model providers; no external vector database is required.
 - Camera framing and voice-pitch estimates run locally in the browser and depend on browser support and user-granted permissions. They do not provide body-language, emotion, or confidence judgments.
 - Calendar reminders are downloaded as local `.ics` files. LinkedIn sharing uses its public share link; OAuth integrations and voice/video cloning providers are not configured.

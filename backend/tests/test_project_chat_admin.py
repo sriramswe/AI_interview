@@ -274,28 +274,76 @@ class ProjectChatAdminTests(unittest.TestCase):
         self.assertNotIn("areas_to_improve", result)
         self.assertEqual(result["overall_score"], 8)
 
-    def test_free_resume_analysis_quota_is_one_per_month(self):
+    def test_free_user_can_run_multiple_ats_analyses_without_quota_usage(self):
         with patch.object(
             backend_app,
             "calculate_detailed_ats_score",
             return_value={"ats_score": 76},
-        ) as analyze:
+        ) as analyze, patch.object(
+            backend_app.gemini_service,
+            "predict_resume_match",
+            new=AsyncMock(return_value={"match_score": 70}),
+        ) as predict:
             first = self.client.post(
                 "/api/ats/analyze",
                 headers=self.user_headers,
-                data={"resume_text": "Python engineer", "target_role": "Engineer"},
+                data={
+                    "resume_text": "Python engineer",
+                    "target_role": "Engineer",
+                    "ai_processing_acknowledged": "true",
+                },
             )
             second = self.client.post(
                 "/api/ats/analyze",
                 headers=self.user_headers,
-                data={"resume_text": "Python engineer", "target_role": "Engineer"},
+                data={
+                    "resume_text": "Python engineer",
+                    "target_role": "Engineer",
+                    "ai_processing_acknowledged": "true",
+                },
+            )
+            third = self.client.post(
+                "/api/ats/analyze",
+                headers=self.user_headers,
+                data={
+                    "resume_text": "Python engineer",
+                    "target_role": "Engineer",
+                    "ai_processing_acknowledged": "true",
+                },
             )
 
         self.assertEqual(first.status_code, 200, first.text)
-        self.assertEqual(second.status_code, 429, second.text)
-        analyze.assert_called_once()
+        self.assertEqual(first.json()["ai_match_prediction"]["match_score"], 70)
+        self.assertEqual(second.status_code, 200, second.text)
+        self.assertEqual(third.status_code, 200, third.text)
+        self.assertEqual(analyze.call_count, 3)
+        self.assertEqual(predict.await_count, 3)
+        subscription = self.client.get(
+            "/api/billing/subscription",
+            headers=self.user_headers,
+        )
+        self.assertEqual(subscription.status_code, 200, subscription.text)
+        self.assertEqual(subscription.json()["resume_analyses_remaining"], 1)
 
-    def test_pro_resume_analysis_quota_is_five_per_month(self):
+    def test_resume_analysis_requires_ai_processing_acknowledgment(self):
+        with patch.object(
+            backend_app.gemini_service,
+            "predict_resume_match",
+            new=AsyncMock(),
+        ) as predict:
+            response = self.client.post(
+                "/api/ats/analyze",
+                headers=self.user_headers,
+                data={
+                    "resume_text": "Python engineer",
+                    "target_role": "Engineer",
+                },
+            )
+
+        self.assertEqual(response.status_code, 400, response.text)
+        predict.assert_not_awaited()
+
+    def test_pro_user_can_run_ats_analysis_after_other_resume_quota_is_used(self):
         now = datetime.now(timezone.utc)
         with database.SessionLocal() as db:
             user = db.scalar(select(User).where(User.email.like("user-%")))
@@ -318,15 +366,24 @@ class ProjectChatAdminTests(unittest.TestCase):
             backend_app,
             "calculate_detailed_ats_score",
             return_value={"ats_score": 76},
-        ) as analyze:
+        ) as analyze, patch.object(
+            backend_app.gemini_service,
+            "predict_resume_match",
+            new=AsyncMock(return_value={"match_score": 70}),
+        ) as predict:
             response = self.client.post(
                 "/api/ats/analyze",
                 headers=self.user_headers,
-                data={"resume_text": "Python engineer", "target_role": "Engineer"},
+                data={
+                    "resume_text": "Python engineer",
+                    "target_role": "Engineer",
+                    "ai_processing_acknowledged": "true",
+                },
             )
 
-        self.assertEqual(response.status_code, 429, response.text)
-        analyze.assert_not_called()
+        self.assertEqual(response.status_code, 200, response.text)
+        analyze.assert_called_once()
+        predict.assert_awaited_once()
 
     def test_free_plan_cannot_start_company_specific_interview(self):
         response = self.client.post(
@@ -1093,8 +1150,8 @@ class ProjectChatAdminTests(unittest.TestCase):
                 "generation_status",
                 side_effect=[
                     "OpenRouter (test/evaluator)",
-                    "Ollama fallback (qwen2.5:7b)",
-                    "Ollama fallback (qwen2.5:7b)",
+                    "OpenRouter (test/reporter)",
+                    "OpenRouter (test/reporter)",
                 ],
             ),
             patch.object(
@@ -1128,7 +1185,7 @@ class ProjectChatAdminTests(unittest.TestCase):
             )
             self.assertEqual(
                 pending_report["report_provider_status"],
-                "Ollama fallback (qwen2.5:7b)",
+                "OpenRouter (test/reporter)",
             )
             saved_pending = self.client.get(
                 f"/api/interviews/history/{interview_id}",
@@ -1140,7 +1197,7 @@ class ProjectChatAdminTests(unittest.TestCase):
             )
             self.assertEqual(
                 saved_pending.json()["transcript"][-1]["report_provider_status"],
-                "Ollama fallback (qwen2.5:7b)",
+                "OpenRouter (test/reporter)",
             )
 
             response = self.client.post(
@@ -1168,7 +1225,7 @@ class ProjectChatAdminTests(unittest.TestCase):
         )
         self.assertEqual(
             result["report_provider_status"],
-            "Ollama fallback (qwen2.5:7b)",
+            "OpenRouter (test/reporter)",
         )
         generate_question.assert_not_awaited()
         self.assertEqual(evaluate_answer.await_count, 1)
@@ -1188,7 +1245,7 @@ class ProjectChatAdminTests(unittest.TestCase):
             )
             self.assertEqual(
                 final_answer["report_provider_status"],
-                "Ollama fallback (qwen2.5:7b)",
+                "OpenRouter (test/reporter)",
             )
         history = self.client.get(
             f"/api/interviews/history/{interview_id}",
@@ -1200,7 +1257,7 @@ class ProjectChatAdminTests(unittest.TestCase):
         self.assertEqual(saved_final_answer["master_report"]["final_verdict"], "HIRE")
         self.assertEqual(
             saved_final_answer["report_provider_status"],
-            "Ollama fallback (qwen2.5:7b)",
+            "OpenRouter (test/reporter)",
         )
 
     def test_resume_categories_auto_detect_from_skills_and_projects(self):

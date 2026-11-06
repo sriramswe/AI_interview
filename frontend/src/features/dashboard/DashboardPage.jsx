@@ -843,7 +843,7 @@ function BillingPanel() {
       {subscription && (
         <p className="fine-print">
           This month: {subscription.interviews_used} / {subscription.interview_limit} mock interviews ·{' '}
-          {subscription.resume_analyses_used} / {subscription.resume_analysis_limit} resume analyses ·{' '}
+          {subscription.resume_analyses_used} / {subscription.resume_analysis_limit} interview resume analyses (ATS checks unlimited) ·{' '}
           {subscription.company_questions_used} / {subscription.company_question_limit} company-specific questions
         </p>
       )}

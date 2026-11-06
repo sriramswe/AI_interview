@@ -2490,9 +2490,15 @@ async def analyze_ats_score(
     resume_text: str | None = Form(None),
     job_description: str | None = Form(None),
     target_role: str | None = Form(None),
-    db: Session = Depends(database.get_db),
+    ai_processing_acknowledged: bool = Form(False),
     current_user: models.User = Depends(auth_utils.get_current_user),
 ):
+    if not ai_processing_acknowledged:
+        raise HTTPException(
+            status_code=400,
+            detail="Please acknowledge AI processing of your resume before analysis.",
+        )
+
     extracted_text = (resume_text or "").strip()
     filename = None
     if file and file.filename:
@@ -2512,24 +2518,17 @@ async def analyze_ats_score(
             detail="Please provide a PDF resume or paste your resume text.",
         )
 
-    _, usage_id = _reserve_monthly_usage(
-        db, current_user, "resume_analysis", required=True
+    result = await run_in_threadpool(
+        calculate_detailed_ats_score,
+        resume_text=extracted_text,
+        job_description=job_description,
+        target_role=target_role,
     )
-    try:
-        result = await run_in_threadpool(
-            calculate_detailed_ats_score,
-            resume_text=extracted_text,
-            job_description=job_description,
-            target_role=target_role,
-        )
-        result["ai_match_prediction"] = await gemini_service.predict_resume_match(
-            resume_text=extracted_text,
-            job_description=job_description,
-            target_role=target_role,
-        )
-    except Exception:
-        _release_monthly_usage(db, usage_id)
-        raise
+    result["ai_match_prediction"] = await gemini_service.predict_resume_match(
+        resume_text=extracted_text,
+        job_description=job_description,
+        target_role=target_role,
+    )
     if filename:
         result["filename"] = filename
     return result

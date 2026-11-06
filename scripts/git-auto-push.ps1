@@ -15,8 +15,16 @@ function Invoke-Git {
         [switch]$AllowFailure
     )
 
-    $output = @(& git @GitArguments 2>&1 | ForEach-Object { "$_" })
-    $exitCode = $LASTEXITCODE
+    $previousErrorActionPreference = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = 'Continue'
+        $output = @(& git @GitArguments 2>&1 | ForEach-Object { "$_" })
+        $exitCode = $LASTEXITCODE
+    }
+    finally {
+        $ErrorActionPreference = $previousErrorActionPreference
+    }
+
     if ($exitCode -ne 0 -and -not $AllowFailure) {
         throw "git $($GitArguments -join ' ') failed (exit $exitCode):`n$($output -join "`n")"
     }
