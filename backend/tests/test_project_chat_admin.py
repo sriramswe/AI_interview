@@ -664,7 +664,7 @@ class ProjectChatAdminTests(unittest.TestCase):
         self.assertEqual(promoted.json()["role"], "admin")
         self.assertFalse(promoted.json()["super_admin"])
 
-        other_user_headers = self._register(f"other-{uuid4().hex}@example.com")
+        self._register(f"other-{uuid4().hex}@example.com")
         with database.SessionLocal() as db:
             other_user = db.scalar(
                 select(User).where(User.email.like("other-%"))
@@ -687,7 +687,7 @@ class ProjectChatAdminTests(unittest.TestCase):
 
         demoted_by_admin = self.client.patch(
             f"/api/admin/users/{other_user_id}",
-            headers=other_user_headers,
+            headers=self.user_headers,
             json={"role": "user"},
         )
         self.assertEqual(demoted_by_admin.status_code, 200, demoted_by_admin.text)
