@@ -524,9 +524,9 @@ class BackendFeatureServiceTests(unittest.TestCase):
 
             async def post(self, _url, *, json, **_kwargs):
                 requests.append(json["model"])
-                if json["model"] == "primary/free":
-                    return FakeResponse(429)
-                return FakeResponse(200)
+                return FakeResponse(
+                    200 if json["model"] == "openrouter/free" else 429
+                )
 
         with (
             patch.dict(
@@ -534,7 +534,7 @@ class BackendFeatureServiceTests(unittest.TestCase):
                 {
                     "OPENROUTER_API_KEY": "test-key",
                     "OPENROUTER_MODEL": "primary/free",
-                    "OPENROUTER_FALLBACK_MODELS": "fallback/free",
+                    "OPENROUTER_FALLBACK_MODELS": "fallback/free,openrouter/free",
                 },
                 clear=False,
             ),
@@ -548,8 +548,11 @@ class BackendFeatureServiceTests(unittest.TestCase):
             result, route = asyncio.run(generate_with_status())
 
         self.assertEqual(result, "Fallback answer.")
-        self.assertEqual(requests, ["primary/free", "fallback/free"])
-        self.assertEqual(route, "OpenRouter (fallback/free)")
+        self.assertEqual(
+            requests,
+            ["primary/free", "fallback/free", "openrouter/free"],
+        )
+        self.assertEqual(route, "OpenRouter (openrouter/free)")
 
     def test_openrouter_rate_limit_does_not_fall_back_to_local_ollama(self):
         requests = []

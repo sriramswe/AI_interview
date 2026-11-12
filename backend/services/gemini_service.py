@@ -17,6 +17,7 @@ DEFAULT_OPENROUTER_MODEL = "google/gemma-4-31b-it:free"
 DEFAULT_OPENROUTER_FALLBACK_MODELS = (
     "google/gemma-4-26b-a4b-it:free",
     "nvidia/nemotron-3-ultra-550b-a55b:free",
+    "openrouter/free",
 )
 OPENROUTER_MIN_OUTPUT_TOKENS = 8192
 
