@@ -1662,13 +1662,13 @@ def update_admin_user(
             status_code=409,
             detail="Admins cannot change their own role here.",
         )
-    # if _is_super_admin(user) and (
-    #     payload.role == "user" or payload.suspended is True
-    # ):
-    #     raise HTTPException(
-    #         status_code=409,
-    #         detail="Super-admin accounts cannot be demoted or suspended here.",
-    #     )
+    if _is_super_admin(user) and (
+        payload.role == "user" or payload.suspended is True
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail="Super-admin accounts cannot be demoted or suspended here.",
+        )
     if payload.role is not None:
         user.role = payload.role
     if payload.suspended is not None:
