@@ -180,4 +180,12 @@ def get_current_user(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="This account is suspended. Contact support for assistance.",
         )
+    configured_admin_emails = {
+        email.strip().casefold()
+        for email in os.getenv("SUPER_ADMIN_EMAILS", "").split(",")
+        if email.strip()
+    }
+    if user.email.casefold() in configured_admin_emails and user.role != "admin":
+        user.role = "admin"
+        db.commit()
     return user

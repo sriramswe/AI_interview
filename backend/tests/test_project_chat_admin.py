@@ -649,6 +649,24 @@ class ProjectChatAdminTests(unittest.TestCase):
             user = db.scalar(select(User).where(User.email == "admin@example.com"))
             self.assertEqual(user.role, "admin")
 
+    def test_allowlisted_account_with_stale_role_is_promoted_on_authentication(self):
+        with database.SessionLocal() as db:
+            user = db.scalar(select(User).where(User.email.like("user-%")))
+            email = user.email
+            user_id = user.id
+
+        os.environ["SUPER_ADMIN_EMAILS"] += f",{email.upper()}"
+
+        response = self.client.get(
+            "/api/admin/summary",
+            headers=self.user_headers,
+        )
+
+        self.assertEqual(response.status_code, 200, response.text)
+        with database.SessionLocal() as db:
+            user = db.get(User, user_id)
+            self.assertEqual(user.role, "admin")
+
     def test_admin_can_promote_and_demote_non_super_admin_accounts(self):
         with database.SessionLocal() as db:
             user = db.scalar(select(User).where(User.email.like("user-%")))
