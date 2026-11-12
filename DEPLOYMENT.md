@@ -11,7 +11,7 @@ The root `render.yaml` defines a Python web service rooted at `backend`. Create 
 - `OPENROUTER_FALLBACK_MODELS`: comma-separated alternate models tried when the primary is rate-limited or returns no text.
 - `OPENROUTER_SITE_URL`: optional OpenRouter attribution URL.
 - `GOOGLE_CLIENT_ID`: OAuth client ID for backend token verification when using Google sign-in.
-- `SUPER_ADMIN_EMAILS`: comma-separated email allowlist for super-admin accounts. Matching accounts receive the persisted `admin` role at startup and can assign `user`/`admin` roles. Other accounts may be promoted to admin by a super-admin in the admin user table; do not remove the last trusted super-admin.
+- `SUPER_ADMIN_EMAILS`: comma-separated email allowlist for trusted admin accounts. Matching accounts receive the persisted `admin` role at startup and on authentication (email matching is case-insensitive). Set this to the trusted admin's email in Render and redeploy/restart the service; these accounts can assign `user`/`admin` roles. Other accounts may be promoted to admin by an admin in the admin user table; do not remove the last trusted admin.
 - `UPI_ID`, `UPI_PAYEE_NAME`, and `PAYMENT_REVIEWER_EMAILS`: required to enable manual UPI payments and review. Use the merchant's verified receiving UPI ID and an inbox belonging to an authorized reviewer. Keep the receiving ID in backend environment settings, not frontend variables or source control. Configure `SUPER_ADMIN_EMAILS` for the reviewer who will approve/reject receipts.
 
 ### Production CI/CD with GitHub Actions
