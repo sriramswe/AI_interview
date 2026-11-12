@@ -268,13 +268,15 @@ export default function AdminDashboardPage() {
                   </td>
                   <td>
                     <div className="admin-user-actions">
-                      {profile?.is_super_admin && (
+                      {profile?.role === 'admin' && (
                         <div className="admin-plan-action">
                           <label className="sr-only" htmlFor={`role-${user.id}`}>
                             Role for {user.email}
                           </label>
                           <select
-                            disabled={Boolean(busyUser) || user.super_admin}
+                            disabled={Boolean(busyUser)
+                              || user.super_admin
+                              || user.id === profile.id}
                             id={`role-${user.id}`}
                             onChange={(event) => setRoleDrafts((current) => ({
                               ...current,
@@ -289,6 +291,7 @@ export default function AdminDashboardPage() {
                             aria-label={`Save role for ${user.email}`}
                             disabled={Boolean(busyUser)
                               || user.super_admin
+                              || user.id === profile.id
                               || roleDrafts[user.id] === user.role}
                             onClick={() => handleUserUpdate(
                               user,

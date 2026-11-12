@@ -649,7 +649,7 @@ class ProjectChatAdminTests(unittest.TestCase):
             user = db.scalar(select(User).where(User.email == "admin@example.com"))
             self.assertEqual(user.role, "admin")
 
-    def test_super_admin_can_promote_user_and_promoted_admin_cannot_change_roles(self):
+    def test_admin_can_promote_and_demote_non_super_admin_accounts(self):
         with database.SessionLocal() as db:
             user = db.scalar(select(User).where(User.email.like("user-%")))
             user_id = user.id
@@ -664,18 +664,48 @@ class ProjectChatAdminTests(unittest.TestCase):
         self.assertEqual(promoted.json()["role"], "admin")
         self.assertFalse(promoted.json()["super_admin"])
 
+        other_user_headers = self._register(f"other-{uuid4().hex}@example.com")
+        with database.SessionLocal() as db:
+            other_user = db.scalar(
+                select(User).where(User.email.like("other-%"))
+            )
+            other_user_id = other_user.id
+
         admin_summary = self.client.get(
             "/api/admin/summary",
             headers=self.user_headers,
         )
         self.assertEqual(admin_summary.status_code, 200, admin_summary.text)
 
-        forbidden_role_change = self.client.patch(
-            f"/api/admin/users/{user_id}",
+        promoted_by_admin = self.client.patch(
+            f"/api/admin/users/{other_user_id}",
             headers=self.user_headers,
+            json={"role": "admin"},
+        )
+        self.assertEqual(promoted_by_admin.status_code, 200, promoted_by_admin.text)
+        self.assertEqual(promoted_by_admin.json()["role"], "admin")
+
+        demoted_by_admin = self.client.patch(
+            f"/api/admin/users/{other_user_id}",
+            headers=other_user_headers,
             json={"role": "user"},
         )
-        self.assertEqual(forbidden_role_change.status_code, 403)
+        self.assertEqual(demoted_by_admin.status_code, 200, demoted_by_admin.text)
+        self.assertEqual(demoted_by_admin.json()["role"], "user")
+
+    def test_admin_cannot_change_their_own_role(self):
+        admin_id = self.client.get(
+            "/api/users/me",
+            headers=self.admin_headers,
+        ).json()["id"]
+
+        response = self.client.patch(
+            f"/api/admin/users/{admin_id}",
+            headers=self.admin_headers,
+            json={"role": "user"},
+        )
+
+        self.assertEqual(response.status_code, 409)
 
     def test_regular_user_cannot_assign_admin_role(self):
         with database.SessionLocal() as db:

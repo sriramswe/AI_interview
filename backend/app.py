@@ -1654,11 +1654,14 @@ def update_admin_user(
             status_code=422,
             detail="Provide a role, suspension, or plan change.",
         )
-    if payload.role is not None:
-        _require_super_admin(current_user)
     user = db.get(models.User, user_id)
     if user is None:
         raise HTTPException(status_code=404, detail="User not found.")
+    if payload.role is not None and user.id == current_user.id:
+        raise HTTPException(
+            status_code=409,
+            detail="Admins cannot change their own role here.",
+        )
     if _is_super_admin(user) and (
         payload.role == "user" or payload.suspended is True
     ):
@@ -1666,7 +1669,11 @@ def update_admin_user(
             status_code=409,
             detail="Super-admin accounts cannot be demoted or suspended here.",
         )
-    if user.role == "admin" and not _is_super_admin(current_user):
+    if (
+        user.role == "admin"
+        and not _is_super_admin(current_user)
+        and (payload.suspended is not None or payload.plan is not None)
+    ):
         raise HTTPException(
             status_code=403,
             detail="Only a super-admin can manage another admin account.",
