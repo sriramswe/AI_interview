@@ -378,6 +378,10 @@ export function InterviewAppProvider({ children }) {
         ...current,
         first_question: data.next_question,
         question_category: data.question_category,
+        interview_round: data.current_round || data.next_round || current.interview_round,
+        current_round_number: data.current_round_number
+          ?? data.next_round_number
+          ?? current.current_round_number,
         technical_category_plan: current.technical_category_plan,
         pending_answer: null,
         finished: data.interview_completed || data.terminated,
