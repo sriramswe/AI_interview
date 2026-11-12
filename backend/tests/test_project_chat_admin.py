@@ -720,6 +720,19 @@ class ProjectChatAdminTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 403)
 
+    def test_role_update_rejects_values_other_than_user_and_admin(self):
+        with database.SessionLocal() as db:
+            user = db.scalar(select(User).where(User.email.like("user-%")))
+            user_id = user.id
+
+        response = self.client.patch(
+            f"/api/admin/users/{user_id}",
+            headers=self.admin_headers,
+            json={"role": "super_admin"},
+        )
+
+        self.assertEqual(response.status_code, 422)
+
     def test_existing_users_table_is_upgraded_with_gender_and_role(self):
         engine = create_engine("sqlite+pysqlite://")
         try:
