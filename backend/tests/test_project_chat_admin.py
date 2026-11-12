@@ -711,6 +711,37 @@ class ProjectChatAdminTests(unittest.TestCase):
         self.assertEqual(demoted_by_admin.status_code, 200, demoted_by_admin.text)
         self.assertEqual(demoted_by_admin.json()["role"], "user")
 
+        promoted_by_admin = self.client.patch(
+            f"/api/admin/users/{other_user_id}",
+            headers=self.user_headers,
+            json={"role": "admin"},
+        )
+        self.assertEqual(promoted_by_admin.status_code, 200, promoted_by_admin.text)
+
+        admin_plan = self.client.patch(
+            f"/api/admin/users/{other_user_id}",
+            headers=self.user_headers,
+            json={"plan": "pro", "duration_days": 30},
+        )
+        self.assertEqual(admin_plan.status_code, 200, admin_plan.text)
+        self.assertEqual(admin_plan.json()["plan"], "pro")
+
+        suspended_admin = self.client.patch(
+            f"/api/admin/users/{other_user_id}",
+            headers=self.user_headers,
+            json={"suspended": True},
+        )
+        self.assertEqual(suspended_admin.status_code, 200, suspended_admin.text)
+        self.assertTrue(suspended_admin.json()["suspended"])
+
+        restored_admin = self.client.patch(
+            f"/api/admin/users/{other_user_id}",
+            headers=self.user_headers,
+            json={"suspended": False},
+        )
+        self.assertEqual(restored_admin.status_code, 200, restored_admin.text)
+        self.assertFalse(restored_admin.json()["suspended"])
+
     def test_admin_cannot_change_their_own_role(self):
         admin_id = self.client.get(
             "/api/users/me",

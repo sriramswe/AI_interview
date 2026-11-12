@@ -1669,16 +1669,6 @@ def update_admin_user(
             status_code=409,
             detail="Super-admin accounts cannot be demoted or suspended here.",
         )
-    if (
-        user.role == "admin"
-        and not _is_super_admin(current_user)
-        and (payload.suspended is not None or payload.plan is not None)
-    ):
-        raise HTTPException(
-            status_code=403,
-            detail="Only a super-admin can manage another admin account.",
-        )
-
     if payload.role is not None:
         user.role = payload.role
     if payload.suspended is not None:
