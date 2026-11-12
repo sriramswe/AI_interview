@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
-import { ChevronDown, ChevronUp, RotateCcw } from 'lucide-react'
+import { ChevronDown, ChevronUp, RotateCcw, Trash2 } from 'lucide-react'
 import { getApiError } from '../../services/apiClient'
 import {
+  deleteSavedInterviewAnswer,
   fetchInterviewHistoryDetail,
   retryInterviewAnswer,
 } from '../../services/interviewService'
@@ -30,6 +31,8 @@ export default function AnswerReview({ interviewId, token }) {
   const [retryText, setRetryText] = useState('')
   const [retryError, setRetryError] = useState('')
   const [retrying, setRetrying] = useState(false)
+  const [deletingAnswerId, setDeletingAnswerId] = useState(null)
+  const [deleteError, setDeleteError] = useState('')
 
   useEffect(() => {
     if (!open) return undefined
@@ -88,6 +91,32 @@ export default function AnswerReview({ interviewId, token }) {
     }
   }
 
+  const deleteAnswer = async (answer) => {
+    if (!window.confirm(
+      'Delete this saved answer and its feedback? The interview transcript and overall score will remain.',
+    )) return
+    setDeletingAnswerId(answer.answer_id)
+    setDeleteError('')
+    try {
+      await deleteSavedInterviewAnswer({
+        token,
+        interviewId,
+        answerId: answer.answer_id,
+      })
+      setAnswers((current) => current.filter(
+        (item) => item.answer_id !== answer.answer_id,
+      ))
+      if (retryAnswerId === answer.answer_id) {
+        setRetryAnswerId(null)
+        setRetryText('')
+      }
+    } catch (error) {
+      setDeleteError(getApiError(error, 'Could not delete the saved answer.'))
+    } finally {
+      setDeletingAnswerId(null)
+    }
+  }
+
   return (
     <section aria-labelledby="answer-review-heading" className="answer-review">
       <button
@@ -105,6 +134,7 @@ export default function AnswerReview({ interviewId, token }) {
           <h3 id="answer-review-heading">Your saved answers</h3>
           {loading && <p role="status">Loading your saved answers…</p>}
           {loadError && <p className="notice error" role="alert">{loadError}</p>}
+          {deleteError && <p className="notice error" role="alert">{deleteError}</p>}
           {!loading && !loadError && answers.length === 0 && (
             <p className="fine-print">Your submitted answers will appear here for review.</p>
           )}
@@ -116,7 +146,19 @@ export default function AnswerReview({ interviewId, token }) {
                 <div className="answer-review-attempt" key={answer.answer_id}>
                   <div className="answer-review-heading">
                     <p className="answer-review-label">Attempt {attemptIndex + 1}</p>
-                    <strong>{formatScore(answer.final_score)}</strong>
+                    <div className="answer-review-actions">
+                      <strong>{formatScore(answer.final_score)}</strong>
+                      <button
+                        aria-label={`Delete saved attempt ${attemptIndex + 1}`}
+                        className="button secondary answer-review-delete-button"
+                        disabled={deletingAnswerId !== null || retrying}
+                        onClick={() => deleteAnswer(answer)}
+                        type="button"
+                      >
+                        <Trash2 aria-hidden="true" size={15} />
+                        {deletingAnswerId === answer.answer_id ? 'Deleting…' : 'Delete'}
+                      </button>
+                    </div>
                   </div>
                   <p className="answer-review-label">Your answer</p>
                   <p className="answer-review-text">{answer.answer}</p>

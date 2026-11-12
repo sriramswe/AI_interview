@@ -15,6 +15,7 @@ export default function InterviewWorkspace() {
     busy,
     handleBackToDashboard,
     handleCodingStageComplete,
+    handleDeletePendingAnswer,
     handleGenerateRoadmap,
     handleSubmitAnswer,
     interview,
@@ -136,6 +137,7 @@ export default function InterviewWorkspace() {
           setAnswer={setAnswer}
           paymentStatus={paymentStatus}
           handleSubmitAnswer={submitAnswer}
+          handleDeletePendingAnswer={handleDeletePendingAnswer}
           handleBackToDashboard={handleBackToDashboard}
           lastEvaluation={lastEvaluation}
           feedbackTier={feedbackTier}

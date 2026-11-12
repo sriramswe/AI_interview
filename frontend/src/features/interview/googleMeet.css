@@ -845,11 +845,33 @@
 }
 
 .meet-answer-retry-hint {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
   flex-shrink: 0;
   margin: 0;
   color: #fbbc04;
   font-size: 12px;
   line-height: 1.4;
+}
+
+.meet-answer-discard-btn {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  padding: 4px 0;
+  background: transparent;
+  color: #fbbc04;
+  font: inherit;
+  cursor: pointer;
+}
+
+.meet-answer-discard-btn:disabled {
+  cursor: wait;
+  opacity: 0.65;
 }
 
 .meet-answer-input-box {

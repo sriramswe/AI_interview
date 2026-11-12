@@ -83,6 +83,20 @@ export async function retryInterviewAnswer({ token, interviewId, answerId, answe
   return data
 }
 
+export async function deleteSavedInterviewAnswer({ token, interviewId, answerId }) {
+  await api.delete(
+    `/api/interviews/history/${interviewId}/answers/${answerId}`,
+    { headers: authHeaders(token) },
+  )
+}
+
+export async function deletePendingInterviewAnswer({ token, interviewId }) {
+  await api.delete(
+    `/api/interviews/history/${interviewId}/pending-answer`,
+    { headers: authHeaders(token) },
+  )
+}
+
 export async function submitInterviewAnswer({ token, interviewId, answer, durationSeconds }) {
   const { data } = await api.post('/interviews/submit-answer', {
     interview_id: interviewId,

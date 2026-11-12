@@ -18,6 +18,7 @@ import {
   updateProfile,
 } from '../services/authService'
 import {
+  deletePendingInterviewAnswer,
   fetchInterviewHistoryDetail,
   fetchInterviewRounds,
   generateLearningRoadmap,
@@ -419,6 +420,22 @@ export function InterviewAppProvider({ children }) {
     }
   }
 
+  const handleDeletePendingAnswer = async (interviewId) => {
+    try {
+      await deletePendingInterviewAnswer({ token, interviewId })
+      setInterview((current) => (
+        current?.id === interviewId
+          ? { ...current, pending_answer: null }
+          : current
+      ))
+      setPaymentStatus('')
+      return true
+    } catch (error) {
+      setPaymentStatus(getApiError(error, 'Could not delete your saved answer.'))
+      return false
+    }
+  }
+
   const loadSavedInterview = useCallback(async (interviewId) => {
     if (!token) return
     setInterviewLoading(true)
@@ -598,6 +615,7 @@ export function InterviewAppProvider({ children }) {
     handleCreateCalendarInvite,
     handleCreateCheckout,
     handleCodingStageComplete,
+    handleDeletePendingAnswer,
     handleGenerateRoadmap,
     handleGoogleCredential,
     handleHome,

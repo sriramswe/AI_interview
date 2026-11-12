@@ -554,6 +554,70 @@ class BackendFeatureServiceTests(unittest.TestCase):
         )
         self.assertEqual(route, "OpenRouter (openrouter/free)")
 
+    def test_openrouter_uses_opt_in_paid_fallback_after_free_models_rate_limit(self):
+        requests = []
+
+        class FakeResponse:
+            def __init__(self, status_code):
+                self.status_code = status_code
+
+            def raise_for_status(self):
+                return None
+
+            def json(self):
+                return {
+                    "choices": [
+                        {"message": {"content": "Generated with paid fallback."}}
+                    ]
+                }
+
+        class CaptureClient:
+            def __init__(self, timeout):
+                self.timeout = timeout
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *_):
+                return False
+
+            async def post(self, _url, *, json, **_kwargs):
+                model = json["model"]
+                requests.append(model)
+                return FakeResponse(200 if model == "provider/paid-model" else 429)
+
+        with (
+            patch.dict(
+                os.environ,
+                {
+                    "OPENROUTER_API_KEY": "test-key",
+                    "OPENROUTER_MODEL": "primary/free",
+                    "OPENROUTER_FALLBACK_MODELS": "fallback/free,openrouter/free",
+                    "OPENROUTER_PAID_FALLBACK_MODEL": "provider/paid-model",
+                },
+                clear=True,
+            ),
+            patch("services.gemini_service.httpx.AsyncClient", CaptureClient),
+        ):
+            async def generate_with_status():
+                service = AIService()
+                result = await service._generate("test prompt")
+                return result, service.generation_status()
+
+            result, route = asyncio.run(generate_with_status())
+
+        self.assertEqual(result, "Generated with paid fallback.")
+        self.assertEqual(
+            requests,
+            [
+                "primary/free",
+                "fallback/free",
+                "openrouter/free",
+                "provider/paid-model",
+            ],
+        )
+        self.assertEqual(route, "OpenRouter (provider/paid-model)")
+
     def test_openrouter_rate_limit_does_not_fall_back_to_local_ollama(self):
         requests = []
 

@@ -16,6 +16,7 @@ import {
   Send,
   Sparkles,
   Subtitles,
+  Trash2,
   Users,
   Video,
   VideoOff,
@@ -33,6 +34,7 @@ export default function GoogleMeetInterview({
   setAnswer,
   paymentStatus,
   handleSubmitAnswer,
+  handleDeletePendingAnswer,
   handleBackToDashboard,
   lastEvaluation,
   feedbackTier,
@@ -61,6 +63,7 @@ export default function GoogleMeetInterview({
   const [isSpeakingQuestion, setIsSpeakingQuestion] = useState(false)
   const [chatHistory, setChatHistory] = useState([])
   const [pendingAnswer, setPendingAnswer] = useState('')
+  const [discardingPendingAnswer, setDiscardingPendingAnswer] = useState(false)
   const [currentTime, setCurrentTime] = useState('')
   const [elapsedSeconds, setElapsedSeconds] = useState(0)
   const [answerStartedAt, setAnswerStartedAt] = useState(Date.now())
@@ -103,6 +106,10 @@ export default function GoogleMeetInterview({
       })
     }
   }, [activeDrawer, chatHistory])
+
+  useEffect(() => {
+    setPendingAnswer(interview.pending_answer || '')
+  }, [interview.id, interview.pending_answer])
 
   // Initial camera startup if not enabled
   useEffect(() => {
@@ -235,6 +242,27 @@ export default function GoogleMeetInterview({
           : message
       )))
       setPendingAnswer(submittedAnswer)
+    }
+  }
+
+  const handleDiscardSavedAnswer = async () => {
+    if (!pendingAnswer || busy || discardingPendingAnswer) return
+    if (!window.confirm(
+      'Delete the saved answer waiting for evaluation? You can submit a new answer to this question.',
+    )) return
+    setDiscardingPendingAnswer(true)
+    try {
+      const deleted = await handleDeletePendingAnswer(interview.id)
+      if (!deleted) return
+      const pendingMessageId = pendingCandidateMessageRef.current?.id
+      setChatHistory((prev) => prev.filter(
+        (message) => message.id !== pendingMessageId,
+      ))
+      pendingCandidateMessageRef.current = null
+      setPendingAnswer('')
+      setAnswer('')
+    } finally {
+      setDiscardingPendingAnswer(false)
     }
   }
 
@@ -564,9 +592,20 @@ export default function GoogleMeetInterview({
                     <p className="notice error" role="alert">{paymentStatus}</p>
                   )}
                   {pendingAnswer && (
-                    <p className="meet-answer-retry-hint" role="status">
-                      Your previous answer is saved and waiting for evaluation. Retry it, or edit/replace it and submit again.
-                    </p>
+                    <div className="meet-answer-retry-hint" role="status">
+                      <span>
+                        Your previous answer is saved and waiting for evaluation. Retry it, or edit/replace it and submit again.
+                      </span>
+                      <button
+                        className="meet-answer-discard-btn"
+                        disabled={busy || discardingPendingAnswer}
+                        onClick={handleDiscardSavedAnswer}
+                        type="button"
+                      >
+                        <Trash2 aria-hidden="true" size={14} />
+                        {discardingPendingAnswer ? 'Deleting…' : 'Delete saved answer'}
+                      </button>
+                    </div>
                   )}
                   <form
                     onSubmit={handleSendAnswer}
