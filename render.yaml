@@ -21,6 +21,8 @@ services:
         value: google/gemma-4-31b-it:free
       - key: OPENROUTER_FALLBACK_MODELS
         value: google/gemma-4-26b-a4b-it:free,nvidia/nemotron-3-ultra-550b-a55b:free,openrouter/free
+      - key: OPENROUTER_PAID_FALLBACK_MODEL
+        sync: false
       - key: OPENROUTER_SITE_URL
         sync: false
       - key: GOOGLE_CLIENT_ID

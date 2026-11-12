@@ -94,6 +94,9 @@ class AIService:
                         "OPENROUTER_FALLBACK_MODELS",
                         ",".join(DEFAULT_OPENROUTER_FALLBACK_MODELS),
                     )
+                    paid_fallback_model = os.getenv(
+                        "OPENROUTER_PAID_FALLBACK_MODEL", ""
+                    ).strip()
                     model_names = list(dict.fromkeys(
                         [
                             model_name,
@@ -102,6 +105,7 @@ class AIService:
                                 for fallback in configured_fallbacks.split(",")
                                 if fallback.strip()
                             ),
+                            *([paid_fallback_model] if paid_fallback_model else []),
                         ]
                     ))
                     payload = {
@@ -203,10 +207,17 @@ class AIService:
                             if openrouter_unavailable
                             else "all configured models were rate-limited or returned no text"
                         )
+                        recovery_hint = (
+                            " Configure OPENROUTER_PAID_FALLBACK_MODEL with a billed "
+                            "model to avoid relying only on rate-limited free models "
+                            "(paid usage may incur charges), or retry later."
+                            if not paid_fallback_model
+                            else " Retry after the configured model limits reset."
+                        )
                         raise RuntimeError(
                             f"OpenRouter could not generate an answer: {reason} "
                             f"({', '.join(failed_models)}). Your submitted answer "
-                            "is saved. Retry now, or edit and resubmit it."
+                            f"is saved. Retry or edit and resubmit it.{recovery_hint}"
                         )
                 else:
                     raise RuntimeError("OpenRouter configuration is invalid.")

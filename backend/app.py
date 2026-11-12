@@ -3831,6 +3831,57 @@ def get_interview_history_detail(
     }
 
 
+@app.delete(
+    "/api/interviews/history/{session_id}/answers/{answer_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def delete_saved_interview_answer(
+    session_id: int,
+    answer_id: int,
+    db: Session = Depends(database.get_db),
+    current_user: models.User = Depends(auth_utils.get_current_user),
+):
+    session = _get_owned_interview_session(db, session_id, current_user)
+    answer = db.scalar(
+        select(models.UserAnswer).where(
+            models.UserAnswer.id == answer_id,
+            models.UserAnswer.session_id == session.id,
+        )
+    )
+    if answer is None:
+        raise HTTPException(status_code=404, detail="Interview answer not found.")
+    db.delete(answer)
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@app.delete(
+    "/api/interviews/history/{session_id}/pending-answer",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def delete_pending_interview_answer(
+    session_id: int,
+    db: Session = Depends(database.get_db),
+    current_user: models.User = Depends(auth_utils.get_current_user),
+):
+    session = _get_owned_interview_session(db, session_id, current_user)
+    transcript = session.transcript if isinstance(session.transcript, list) else []
+    pending_answer = transcript[-1] if transcript else None
+    if (
+        session.overall_status != "in_progress"
+        or not isinstance(pending_answer, dict)
+        or pending_answer.get("role") != "user"
+        or pending_answer.get("evaluation_pending") is not True
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail="There is no unevaluated saved answer to delete.",
+        )
+    session.transcript = transcript[:-1]
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
 @app.post("/api/interviews/history/{session_id}/answers/{answer_id}/retry")
 async def retry_interview_answer(
     session_id: int,
