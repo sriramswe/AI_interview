@@ -21,6 +21,15 @@ export default function InterviewBriefing() {
             .filter(Boolean)
             .join(' · ') || `${interview.role_category} interview`}
         </p>
+        {intelligence?.verification_status === 'unverified' && (
+          <div className="briefing-insight">
+            <span className="eyebrow">Company details not verified</span>
+            <p>
+              This session uses generic role-based practice. Company-specific
+              hiring details could not be verified.
+            </p>
+          </div>
+        )}
         {intelligence?.intelligence_reconciliation && (
           <div className="briefing-insight">
             <span className="eyebrow">What to expect</span>

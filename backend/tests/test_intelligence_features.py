@@ -85,6 +85,40 @@ class IntelligenceFeatureTests(unittest.TestCase):
         self.assertTrue(result["is_synthetic"])
         self.assertEqual(service.get_discovery_status("Acme")["mode"], "stealth")
 
+    def test_repeated_critic_rejection_uses_generic_unverified_profile(self):
+        service = ProductionIntelligenceService()
+        state = {
+            "company_name": "Wipro",
+            "industry": None,
+            "geography": "India",
+            "requested_geography": "India",
+            "job_description": None,
+            "research_data": None,
+            "is_synthetic": False,
+            "confidence_score": 25,
+            "generated_profile": {"interview_style": "Unsupported claim"},
+            "is_valid": False,
+            "iterations": 2,
+            "sources": [],
+            "search_query": None,
+            "audited_data": None,
+            "audit_log": [],
+            "critic_feedback": "Company-specific claims are unverified.",
+            "error": None,
+        }
+
+        self.assertEqual(service._critic_decision(state), "fallback")
+        result = service.fallback_profile_node(state)
+
+        self.assertTrue(result["is_valid"])
+        self.assertEqual(result["confidence_score"], 0)
+        self.assertEqual(result["generated_profile"]["verification_status"], "unverified")
+        self.assertEqual(result["generated_profile"]["sources"], [])
+        self.assertIn(
+            "not a verified company round",
+            result["generated_profile"]["interview_rounds"]["Practice round 1"]["style"],
+        )
+
     def test_pruning_reports_stale_entries_and_requires_explicit_apply(self):
         now = datetime(2026, 10, 30, tzinfo=timezone.utc)
         with tempfile.TemporaryDirectory() as temp_dir:

@@ -509,9 +509,59 @@ class ProductionIntelligenceService:
             return "approve"
         if state.get("iterations", 0) < 2:
             return "revise"
-        raise RuntimeError(
-            f"Company profile failed critic review: {state.get('critic_feedback')}"
+        return "fallback"
+
+    def fallback_profile_node(self, state: AgentState) -> AgentState:
+        company_name = state["company_name"]
+        logger.warning(
+            "Using generic interview practice profile for %s after critic rejection: %s",
+            company_name,
+            state.get("critic_feedback"),
         )
+        state["generated_profile"] = {
+            "company_name": company_name,
+            "industry": "Not verified",
+            "interview_style": (
+                "Generic AI-generated practice; no company-specific interview "
+                "style was verified."
+            ),
+            "difficulty_level": (
+                "Intermediate practice default; not a verified company standard."
+            ),
+            "cultural_values": [],
+            "interview_rounds": {
+                "Practice round 1": {
+                    "focus": "Role fundamentals",
+                    "style": "Generic AI-generated practice, not a verified company round.",
+                },
+                "Practice round 2": {
+                    "focus": "Role-related problem solving",
+                    "style": "Generic AI-generated practice, not a verified company round.",
+                },
+            },
+            "tips": [
+                "Use a current job description to tailor practice; company-specific "
+                "hiring details could not be verified."
+            ],
+            "is_synthetic": True,
+            "verification_status": "unverified",
+            "confidence_score": 0,
+            "sources": [],
+            "geography": state.get("geography"),
+        }
+        state["is_synthetic"] = True
+        state["confidence_score"] = 0
+        state["sources"] = []
+        state["is_valid"] = True
+        self._record_progress(
+            company_name,
+            state.get("requested_geography"),
+            "Completed",
+            "Continuing with generic practice because company-specific details "
+            "could not be verified.",
+            "UNVERIFIED",
+        )
+        return state
 
     def _build_workflow(self):
         wf = StateGraph(AgentState)
@@ -520,6 +570,7 @@ class ProductionIntelligenceService:
         wf.add_node("auditor", self.auditor_node)
         wf.add_node("architect", self.architect_node)
         wf.add_node("critic", self.critic_node)
+        wf.add_node("fallback", self.fallback_profile_node)
 
         wf.set_entry_point("router")
         wf.add_edge("router", "researcher")
@@ -529,8 +580,9 @@ class ProductionIntelligenceService:
         wf.add_conditional_edges(
             "critic",
             self._critic_decision,
-            {"approve": END, "revise": "architect"},
+            {"approve": END, "revise": "architect", "fallback": "fallback"},
         )
+        wf.add_edge("fallback", END)
         return wf.compile()
 
     async def get_intelligence(
