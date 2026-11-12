@@ -107,8 +107,31 @@ class IntelligenceFeatureTests(unittest.TestCase):
             "error": None,
         }
 
-        self.assertEqual(service._critic_decision(state), "fallback")
-        result = service.fallback_profile_node(state)
+        async def pass_through(current_state):
+            return current_state
+
+        async def generate_unverified_profile(current_state):
+            current_state["iterations"] += 1
+            current_state["generated_profile"] = {"company_name": "Wipro"}
+            return current_state
+
+        async def reject_profile(current_state):
+            current_state["is_valid"] = False
+            current_state["critic_feedback"] = "Company-specific claims are unverified."
+            return current_state
+
+        with (
+            patch.object(service, "router_node", new=AsyncMock(side_effect=pass_through)),
+            patch.object(service, "researcher_node", new=AsyncMock(side_effect=pass_through)),
+            patch.object(service, "auditor_node", new=AsyncMock(side_effect=pass_through)),
+            patch.object(
+                service,
+                "architect_node",
+                new=AsyncMock(side_effect=generate_unverified_profile),
+            ),
+            patch.object(service, "critic_node", new=AsyncMock(side_effect=reject_profile)),
+        ):
+            result = asyncio.run(service._build_workflow().ainvoke(state))
 
         self.assertTrue(result["is_valid"])
         self.assertEqual(result["confidence_score"], 0)
