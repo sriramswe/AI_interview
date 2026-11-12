@@ -197,6 +197,7 @@ export default function AnswerReview({ interviewId, token }) {
                   ) : (
                     <button
                       className="button secondary answer-review-retry-button"
+                      disabled={deletingAnswerId !== null}
                       onClick={() => startRetry(answer)}
                       type="button"
                     >

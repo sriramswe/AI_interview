@@ -1616,6 +1616,18 @@ select:focus {
   gap: 12px;
 }
 
+.answer-review-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.answer-review-delete-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .answer-review-heading h4,
 .answer-review-question,
 .answer-review-text {

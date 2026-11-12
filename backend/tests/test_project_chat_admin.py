@@ -1254,6 +1254,91 @@ class ProjectChatAdminTests(unittest.TestCase):
             self.assertNotIn("evaluation_pending", answer_turn)
             self.assertEqual(saved_answer.user_answer, improved_answer)
 
+    def test_owner_can_delete_saved_answer_without_affecting_other_users(self):
+        with database.SessionLocal() as db:
+            user = db.scalar(select(User).where(User.email.like("user-%")))
+            session = InterviewSession(
+                user_id=user.id,
+                role_category="Software Engineer",
+                sub_role="Backend",
+            )
+            db.add(session)
+            db.flush()
+            answer = UserAnswer(
+                session_id=session.id,
+                question_text="How would you design a scalable API?",
+                user_answer="I would add pagination and caching.",
+                final_score=8.0,
+            )
+            db.add(answer)
+            db.commit()
+            interview_id = session.id
+            answer_id = answer.id
+
+        forbidden = self.client.delete(
+            f"/api/interviews/history/{interview_id}/answers/{answer_id}",
+            headers=self.admin_headers,
+        )
+        self.assertEqual(forbidden.status_code, 404, forbidden.text)
+        with database.SessionLocal() as db:
+            self.assertIsNotNone(db.get(UserAnswer, answer_id))
+
+        deleted = self.client.delete(
+            f"/api/interviews/history/{interview_id}/answers/{answer_id}",
+            headers=self.user_headers,
+        )
+
+        self.assertEqual(deleted.status_code, 204, deleted.text)
+        with database.SessionLocal() as db:
+            self.assertIsNone(db.get(UserAnswer, answer_id))
+            self.assertIsNotNone(db.get(InterviewSession, interview_id))
+
+    def test_owner_can_discard_only_an_unevaluated_pending_answer(self):
+        question = {
+            "role": "assistant",
+            "content": "How would you design a scalable API?",
+            "round": "Technical/Screening",
+        }
+        pending = {
+            "role": "user",
+            "content": "I would add pagination and caching.",
+            "round": "Technical/Screening",
+            "evaluation_pending": True,
+        }
+        with database.SessionLocal() as db:
+            user = db.scalar(select(User).where(User.email.like("user-%")))
+            session = InterviewSession(
+                user_id=user.id,
+                role_category="Software Engineer",
+                sub_role="Backend",
+                transcript=[question, pending],
+            )
+            db.add(session)
+            db.commit()
+            interview_id = session.id
+
+        forbidden = self.client.delete(
+            f"/api/interviews/history/{interview_id}/pending-answer",
+            headers=self.admin_headers,
+        )
+        self.assertEqual(forbidden.status_code, 404, forbidden.text)
+
+        deleted = self.client.delete(
+            f"/api/interviews/history/{interview_id}/pending-answer",
+            headers=self.user_headers,
+        )
+
+        self.assertEqual(deleted.status_code, 204, deleted.text)
+        with database.SessionLocal() as db:
+            session = db.get(InterviewSession, interview_id)
+            self.assertEqual(session.transcript, [question])
+
+        no_pending_answer = self.client.delete(
+            f"/api/interviews/history/{interview_id}/pending-answer",
+            headers=self.user_headers,
+        )
+        self.assertEqual(no_pending_answer.status_code, 409, no_pending_answer.text)
+
     def test_final_director_answer_completes_interview_without_another_question(self):
         required_rounds = list(
             backend_app.get_rounds_for_role("Software Engineer")
