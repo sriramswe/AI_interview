@@ -3,7 +3,7 @@ import { Download, Loader2, Mic, MicOff, Video } from 'lucide-react'
 import { useInterviewApp } from '../../context/useInterviewApp'
 import { getApiError } from '../../services/apiClient'
 import { fetchInterviewHistoryDetail } from '../../services/interviewService'
-import { downloadInterviewReport, printLearningRoadmapAsPdf } from './interviewReport'
+import { downloadInterviewReport, downloadLearningRoadmapPdf } from './interviewReport'
 import AnswerReview from './AnswerReview'
 import CodingSimulation from './CodingSimulation'
 import GoogleMeetInterview from './GoogleMeetInterview'
@@ -35,6 +35,7 @@ export default function InterviewWorkspace() {
   const [reportLoading, setReportLoading] = useState(false)
   const [reportError, setReportError] = useState('')
   const [roadmapLoading, setRoadmapLoading] = useState(false)
+  const [roadmapPdfLoading, setRoadmapPdfLoading] = useState(false)
   const [roadmapResult, setRoadmapResult] = useState(null)
   const roadmapControllerRef = useRef(null)
   const learningRoadmap = roadmapResult?.sessionId === interview.id
@@ -149,14 +150,18 @@ export default function InterviewWorkspace() {
 
   const cancelRoadmap = () => roadmapControllerRef.current?.abort()
 
-  const handlePrintRoadmap = () => {
+  const handleDownloadRoadmapPdf = async () => {
+    setRoadmapPdfLoading(true)
+    setReportError('')
     try {
-      printLearningRoadmapAsPdf(learningRoadmap, {
+      await downloadLearningRoadmapPdf(learningRoadmap, {
         role: interview.role || interview.role_category,
         company: interview.target_company,
       })
     } catch (error) {
-      setReportError(error.message)
+      setReportError(error.message || 'Could not generate the roadmap PDF.')
+    } finally {
+      setRoadmapPdfLoading(false)
     }
   }
 
@@ -475,9 +480,16 @@ export default function InterviewWorkspace() {
                   <p className="eyebrow">Personalized interview preparation</p>
                   <h3 id="learning-roadmap-title">Your 7-day learning roadmap</h3>
                 </div>
-                <button className="button secondary" onClick={handlePrintRoadmap} type="button">
-                  <Download aria-hidden="true" size={16} />
-                  Print / Save as PDF
+                <button
+                  className="button secondary"
+                  disabled={roadmapPdfLoading}
+                  onClick={handleDownloadRoadmapPdf}
+                  type="button"
+                >
+                  {roadmapPdfLoading
+                    ? <Loader2 aria-hidden="true" className="spin-icon" size={16} />
+                    : <Download aria-hidden="true" size={16} />}
+                  {roadmapPdfLoading ? 'Creating PDF…' : 'Download roadmap PDF'}
                 </button>
               </div>
               <div className="learning-roadmap-days">
