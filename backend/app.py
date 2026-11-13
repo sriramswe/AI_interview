@@ -404,23 +404,29 @@ def _session_round_plan(session: models.InterviewSession) -> list[str]:
 
 def _session_selection_result(
     session: models.InterviewSession,
-) -> tuple[str | None, float | None]:
+) -> dict[str, str | float | None]:
     if session.overall_status == "failed":
         score = (session.round_scores or {}).get(session.interview_round, session.score)
         if isinstance(score, (int, float)) and not isinstance(score, bool):
-            return "failed", round(float(score), 1)
-        return "failed", None
+            return {
+                "selection_status": "failed",
+                "selection_score": round(float(score), 1),
+            }
+        return {"selection_status": "failed", "selection_score": None}
     if session.overall_status != "completed" or not session.round_scores:
-        return None, None
+        return {"selection_status": None, "selection_score": None}
 
     scores = list(session.round_scores.values())
     if any(
         not isinstance(score, (int, float)) or isinstance(score, bool)
         for score in scores
     ):
-        return None, None
+        return {"selection_status": None, "selection_score": None}
     overall_score = sum(scores) / len(scores)
-    return get_score_based_outcome(overall_score), round(overall_score, 1)
+    return {
+        "selection_status": get_score_based_outcome(overall_score),
+        "selection_score": round(overall_score, 1),
+    }
 
 
 def _session_company_intelligence(session: models.InterviewSession):
@@ -2916,7 +2922,9 @@ async def submit_answer(
         raise HTTPException(status_code=409, detail="This interview session has already ended.")
 
     if pending_final_report:
-        selection_status, selection_score = _session_selection_result(session)
+        selection_result = _session_selection_result(session)
+        selection_status = selection_result["selection_status"]
+        selection_score = selection_result["selection_score"]
         company_intel = _session_company_intelligence(session)
         try:
             master_report_raw = await gemini_service.generate_master_report({
@@ -2956,8 +2964,7 @@ async def submit_answer(
                 "round_passed": True,
                 "interview_completed": True,
                 "overall_status": "completed",
-                "selection_status": selection_status,
-                "selection_score": selection_score,
+                **selection_result,
                 "rounds_completed": session.rounds_completed,
                 "round_scores": session.round_scores,
                 "round_score": round(session.score or 0, 1),
@@ -2977,8 +2984,7 @@ async def submit_answer(
         completed_answer["report_provider_status"] = report_provider_status
         completed_answer["completion"] = {
             "status": "completed",
-            "selection_status": selection_status,
-            "selection_score": selection_score,
+            **selection_result,
             "message": (
                 pending_answer.get("completion", {}).get("message")
                 or "All interview rounds are complete."
@@ -3091,7 +3097,7 @@ async def submit_answer(
             and "Technical/Screening" in session.rounds_completed
             and (not coding_ledger or coding_ledger.ledger_data.get("status") != "completed")
         )
-        selection_status, selection_score = _session_selection_result(session)
+        selection_result = _session_selection_result(session)
         return {
             "evaluation": pending_answer["evaluation"],
             "next_question": next_question,
@@ -3369,8 +3375,7 @@ async def submit_answer(
             "completion": {
                 "status": "failed",
                 "failed_round": session.interview_round,
-                "selection_status": selection_status,
-                "selection_score": selection_score,
+                **selection_result,
                 "message": completion_message,
             },
         }
@@ -3876,6 +3881,7 @@ async def get_interview_history(
             "total_questions": s.total_questions,
             "average_score": round(s.average_score, 1),
             "status": s.overall_status,
+            **_session_selection_result(s),
             "target_company": s.target_company,
             "round_scores": s.round_scores or {},
             "rounds_completed": s.rounds_completed or [],

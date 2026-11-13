@@ -84,9 +84,13 @@ function ScoreTrend({ sessions, unavailable }) {
   )
 }
 
-function SessionStatus({ status }) {
+function SessionStatus({ status, selectionStatus }) {
   const normalized = String(status || '').toLowerCase()
-  const label = normalized === 'completed'
+  const label = selectionStatus === 'selected'
+    ? 'Selected'
+    : selectionStatus === 'failed'
+      ? 'Failed'
+      : normalized === 'completed'
     ? 'Completed'
     : normalized === 'failed'
       ? 'Keep practicing'
@@ -139,7 +143,10 @@ function RecentPractice({ history, unavailable }) {
                     {formatDate(session.created_at)}
                   </small>
                 </div>
-                <SessionStatus status={session.status} />
+                <SessionStatus
+                  selectionStatus={session.selection_status}
+                  status={session.status}
+                />
               </div>
               <div className="recent-practice-meta">
                 <span>{session.total_questions || 0} answers</span>

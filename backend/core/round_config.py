@@ -482,10 +482,10 @@ def get_next_round(
     return rounds[next_index] if next_index < len(rounds) else None
 
 
+def get_score_based_outcome(score: float) -> str:
+    return "selected" if score >= PASSING_SCORE else "failed"
+
+
 def should_proceed_to_next_round(score: float, round_name: str) -> bool:
     del round_name
     return get_score_based_outcome(score) == "selected"
-
-
-def get_score_based_outcome(score: float) -> str:
-    return "selected" if score >= PASSING_SCORE else "failed"
