@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Editor from '@monaco-editor/react'
+import { Loader2 } from 'lucide-react'
 import { getApiError } from '../../services/apiClient'
 import {
   advanceCodingRound,
@@ -29,6 +30,8 @@ export default function CodingSimulation({ interview, onComplete, token }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [latestHint, setLatestHint] = useState(null)
+  const [roadmapLoading, setRoadmapLoading] = useState(false)
+  const roadmapControllerRef = useRef(null)
   const round = currentRound(ledger)
   const problem = round?.problem
   const languageConfig = LANGUAGES.find(
@@ -50,7 +53,10 @@ export default function CodingSimulation({ interview, onComplete, token }) {
         if (!active || requestError.response?.status === 404) return
         setError(getApiError(requestError, 'Could not load the coding ledger.'))
       })
-    return () => { active = false }
+    return () => {
+      active = false
+      roadmapControllerRef.current?.abort()
+    }
   }, [interview.id, token])
 
   const startProblem = async () => {
@@ -91,10 +97,17 @@ export default function CodingSimulation({ interview, onComplete, token }) {
   }
 
   const createRoadmap = async () => {
+    const controller = new AbortController()
+    roadmapControllerRef.current = controller
+    setRoadmapLoading(true)
     setLoading(true)
     setError('')
     try {
-      const roadmap = await generateCodingRoadmap({ token, interviewId: interview.id })
+      const roadmap = await generateCodingRoadmap({
+        token,
+        interviewId: interview.id,
+        signal: controller.signal,
+      })
       setLedger((saved) => {
         const key = String(saved.current_round)
         return {
@@ -103,9 +116,15 @@ export default function CodingSimulation({ interview, onComplete, token }) {
         }
       })
     } catch (requestError) {
-      setError(getApiError(requestError, 'Could not generate the learning roadmap.'))
+      if (!controller.signal.aborted && requestError.code !== 'ERR_CANCELED') {
+        setError(getApiError(requestError, 'Could not generate the learning roadmap.'))
+      }
     } finally {
-      setLoading(false)
+      if (roadmapControllerRef.current === controller) {
+        roadmapControllerRef.current = null
+        setRoadmapLoading(false)
+        setLoading(false)
+      }
     }
   }
 
@@ -355,9 +374,20 @@ export default function CodingSimulation({ interview, onComplete, token }) {
             <section className="coding-roadmap">
               <p className="eyebrow">Learning roadmap</p>
               {!round.roadmap && (
-                <button className="button secondary" disabled={loading} onClick={createRoadmap} type="button">
-                  {loading ? 'Creating roadmap…' : 'Generate 7-day learning roadmap'}
-                </button>
+                roadmapLoading ? (
+                  <button
+                    className="button secondary"
+                    onClick={() => roadmapControllerRef.current?.abort()}
+                    type="button"
+                  >
+                    <Loader2 aria-hidden="true" className="spin-icon" size={16} />
+                    Cancel roadmap generation
+                  </button>
+                ) : (
+                  <button className="button secondary" disabled={loading} onClick={createRoadmap} type="button">
+                    Generate 7-day learning roadmap
+                  </button>
+                )
               )}
               {round.roadmap && (
                 <>

@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from 'react'
-import { Download, Mic, MicOff, Video } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { Download, Loader2, Mic, MicOff, Video } from 'lucide-react'
 import { useInterviewApp } from '../../context/useInterviewApp'
 import { getApiError } from '../../services/apiClient'
 import { fetchInterviewHistoryDetail } from '../../services/interviewService'
@@ -34,6 +34,10 @@ export default function InterviewWorkspace() {
   const [elapsedSeconds, setElapsedSeconds] = useState(0)
   const [reportLoading, setReportLoading] = useState(false)
   const [reportError, setReportError] = useState('')
+  const [roadmapLoading, setRoadmapLoading] = useState(false)
+  const roadmapControllerRef = useRef(null)
+
+  useEffect(() => () => roadmapControllerRef.current?.abort(), [])
 
   const questionTotal = interview.questions_per_round || 20
   const feedbackTier = !subscription || subscription.plan === 'free'
@@ -125,6 +129,19 @@ export default function InterviewWorkspace() {
       setReportLoading(false)
     }
   }
+
+  const handleCreateRoadmap = async () => {
+    const controller = new AbortController()
+    roadmapControllerRef.current = controller
+    setRoadmapLoading(true)
+    await handleGenerateRoadmap({ signal: controller.signal })
+    if (roadmapControllerRef.current === controller) {
+      roadmapControllerRef.current = null
+      setRoadmapLoading(false)
+    }
+  }
+
+  const cancelRoadmap = () => roadmapControllerRef.current?.abort()
 
   // If user is in Google Meet mode and interview is not yet finished, show the Google Meet interface
   if (viewMode === 'meet' && !interview.finished) {
@@ -423,9 +440,16 @@ export default function InterviewWorkspace() {
             </div>
           )}
           {subscription?.plan === 'elite' && (
-            <button className="button secondary" type="button" onClick={handleGenerateRoadmap}>
-              Generate 7-day learning roadmap
-            </button>
+            roadmapLoading ? (
+              <button className="button secondary" type="button" onClick={cancelRoadmap}>
+                <Loader2 aria-hidden="true" className="spin-icon" size={16} />
+                Cancel roadmap generation
+              </button>
+            ) : (
+              <button className="button secondary" type="button" onClick={handleCreateRoadmap}>
+                Generate 7-day learning roadmap
+              </button>
+            )
           )}
           <button
             className="button secondary"

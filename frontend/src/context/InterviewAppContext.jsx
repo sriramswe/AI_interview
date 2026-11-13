@@ -544,11 +544,16 @@ export function InterviewAppProvider({ children }) {
     }
   }, [token])
 
-  const handleGenerateRoadmap = async () => {
+  const handleGenerateRoadmap = async ({ signal } = {}) => {
     try {
-      const data = await generateLearningRoadmap({ token, interviewId: interview.id })
+      const data = await generateLearningRoadmap({
+        token,
+        interviewId: interview.id,
+        signal,
+      })
       setPaymentStatus(JSON.stringify(data, null, 2))
     } catch (error) {
+      if (signal?.aborted || error.code === 'ERR_CANCELED') return
       setPaymentStatus(getApiError(error, 'Could not create a learning roadmap.'))
     }
   }

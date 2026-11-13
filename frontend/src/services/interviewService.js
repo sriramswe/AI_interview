@@ -106,11 +106,11 @@ export async function submitInterviewAnswer({ token, interviewId, answer, durati
   return data
 }
 
-export async function generateLearningRoadmap({ token, interviewId }) {
+export async function generateLearningRoadmap({ token, interviewId, signal }) {
   const { data } = await api.post(
     `/api/interviews/history/${interviewId}/learning-roadmap`,
     {},
-    { headers: authHeaders(token) },
+    { headers: authHeaders(token), signal },
   )
   return data
 }
@@ -150,11 +150,11 @@ export async function submitCodingSolution({ token, interviewId, code, explanati
   return data
 }
 
-export async function generateCodingRoadmap({ token, interviewId }) {
+export async function generateCodingRoadmap({ token, interviewId, signal }) {
   const { data } = await api.post(
     `/api/interviews/${interviewId}/coding/roadmap`,
     {},
-    { headers: authHeaders(token) },
+    { headers: authHeaders(token), signal },
   )
   return data
 }
