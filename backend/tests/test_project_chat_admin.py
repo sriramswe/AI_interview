@@ -187,7 +187,7 @@ class ProjectChatAdminTests(unittest.TestCase):
         self.assertEqual(repair.await_count, 1)
         self.assertEqual(
             repair.await_args.kwargs["validation_errors"],
-            ["days"],
+            ["days", "failed_topics", "resource_recommendations"],
         )
 
     def test_round_preview_uses_the_authenticated_candidate_profile(self):
