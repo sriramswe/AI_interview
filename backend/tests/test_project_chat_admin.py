@@ -1284,6 +1284,8 @@ class ProjectChatAdminTests(unittest.TestCase):
         self.assertTrue(result["terminated"])
         self.assertFalse(result["round_passed"])
         self.assertEqual(result["overall_status"], "failed")
+        self.assertEqual(result["selection_status"], "failed")
+        self.assertLess(result["selection_score"], 6)
         self.assertIsNone(result["next_question"])
         self.assertEqual(result["failed_round"], "Technical/Screening")
         generate_question.assert_not_awaited()
@@ -1294,6 +1296,16 @@ class ProjectChatAdminTests(unittest.TestCase):
                 session.transcript[-1]["completion"]["status"],
                 "failed",
             )
+            self.assertEqual(
+                session.transcript[-1]["completion"]["selection_status"],
+                "failed",
+            )
+        history = self.client.get(
+            f"/api/interviews/history/{interview_id}",
+            headers=self.user_headers,
+        )
+        self.assertEqual(history.status_code, 200, history.text)
+        self.assertEqual(history.json()["selection_status"], "failed")
 
     def test_candidate_can_edit_saved_answer_after_ai_evaluation_failure(self):
         with database.SessionLocal() as db:
@@ -1561,6 +1573,8 @@ class ProjectChatAdminTests(unittest.TestCase):
             self.assertTrue(pending_report["master_report_pending"])
             self.assertIsNone(pending_report["next_question"])
             self.assertEqual(pending_report["overall_status"], "completed")
+            self.assertEqual(pending_report["selection_status"], "selected")
+            self.assertEqual(pending_report["selection_score"], 8.0)
             self.assertEqual(
                 pending_report["ai_provider_status"],
                 "OpenRouter (test/evaluator)",
@@ -1581,6 +1595,7 @@ class ProjectChatAdminTests(unittest.TestCase):
                 saved_pending.json()["transcript"][-1]["report_provider_status"],
                 "OpenRouter (test/reporter)",
             )
+            self.assertEqual(saved_pending.json()["selection_status"], "selected")
 
             response = self.client.post(
                 "/interviews/submit-answer",
@@ -1600,6 +1615,8 @@ class ProjectChatAdminTests(unittest.TestCase):
         self.assertEqual(result["questions_asked"], 20)
         self.assertEqual(result["total_questions"], 80)
         self.assertEqual(result["rounds_completed"], required_rounds)
+        self.assertEqual(result["selection_status"], "selected")
+        self.assertEqual(result["selection_score"], 8.0)
         self.assertEqual(result["master_report"]["final_verdict"], "HIRE")
         self.assertEqual(
             result["ai_provider_status"],
@@ -1617,6 +1634,10 @@ class ProjectChatAdminTests(unittest.TestCase):
             self.assertEqual(session.overall_status, "completed")
             final_answer = session.transcript[-1]
             self.assertEqual(final_answer["completion"]["status"], "completed")
+            self.assertEqual(
+                final_answer["completion"]["selection_status"],
+                "selected",
+            )
             self.assertEqual(
                 final_answer["master_report"]["final_verdict"],
                 "HIRE",
@@ -1636,7 +1657,13 @@ class ProjectChatAdminTests(unittest.TestCase):
         self.assertEqual(history.status_code, 200, history.text)
         saved_final_answer = history.json()["transcript"][-1]
         self.assertEqual(saved_final_answer["completion"]["status"], "completed")
+        self.assertEqual(
+            saved_final_answer["completion"]["selection_status"],
+            "selected",
+        )
         self.assertEqual(saved_final_answer["master_report"]["final_verdict"], "HIRE")
+        self.assertEqual(history.json()["selection_status"], "selected")
+        self.assertEqual(history.json()["selection_score"], 8.0)
         self.assertEqual(
             saved_final_answer["report_provider_status"],
             "OpenRouter (test/reporter)",
