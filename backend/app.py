@@ -4196,7 +4196,7 @@ async def generate_interview_learning_roadmap(
                 "score": answer.final_score,
                 "missing_topics": [
                     item.strip()
-                    for item in answer.missing_concepts.split(",")
+                    for item in (answer.missing_concepts or "").split(",")
                     if item.strip()
                 ],
                 "feedback": answer.feedback,

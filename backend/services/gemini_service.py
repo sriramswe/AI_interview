@@ -775,7 +775,8 @@ settings, account data, prices, or actions.
             '"failed_topics" and "resource_recommendations" (lists). Do not invent '
             "URLs, courses, or credentials; recommend resource types or well-known "
             "topics only when supported by the evidence.\n"
-            f"Interview evidence:\n{session_data}"
+            f"Interview evidence:\n{session_data}",
+            json_mode=True,
         )
 
 

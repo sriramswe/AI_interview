@@ -162,6 +162,21 @@ class BackendFeatureServiceTests(unittest.TestCase):
         self.assertEqual(get_score_based_outcome(6), "selected")
         self.assertEqual(get_score_based_outcome(5.99), "failed")
 
+    def test_interview_learning_roadmap_requests_json_mode(self):
+        service = AIService()
+        with patch.object(
+            service,
+            "_generate",
+            new_callable=AsyncMock,
+            return_value='{"days": []}',
+        ) as generate:
+            response = asyncio.run(
+                service.generate_learning_roadmap({"role": "Software Engineer"})
+            )
+
+        self.assertEqual(response, '{"days": []}')
+        self.assertTrue(generate.await_args.kwargs["json_mode"])
+
     def test_resume_keyword_match_reports_an_explainable_score(self):
         result = analyze_resume_match(
             "Built Python APIs and deployed services with Docker and SQL.",
