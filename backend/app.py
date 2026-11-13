@@ -3101,26 +3101,11 @@ async def submit_answer(
                 models.CodingRoundLedger.user_id == current_user.id,
             )
         )
-        rounds_completed = (
-            session.rounds_completed
-            if isinstance(session.rounds_completed, list)
-            else []
-        )
-        round_scores = (
-            session.round_scores if isinstance(session.round_scores, dict) else {}
-        )
-        transcript = session.transcript if isinstance(session.transcript, list) else []
-        coding_ledger_data = (
-            coding_ledger.ledger_data
-            if coding_ledger and isinstance(coding_ledger.ledger_data, dict)
-            else {}
-        )
         coding_gate_required = (
             session.interview_round == "Behavioral/HR"
-            and "Technical/Screening" in rounds_completed
-            and coding_ledger_data.get("status") != "completed"
+            and "Technical/Screening" in session.rounds_completed
+            and (not coding_ledger or coding_ledger.ledger_data.get("status") != "completed")
         )
-        selection_result = _session_selection_result(session)
         return {
             "evaluation": pending_answer["evaluation"],
             "next_question": next_question,
@@ -3943,10 +3928,24 @@ def get_interview_history_detail(
             models.CodingRoundLedger.user_id == current_user.id,
         )
     )
+    rounds_completed = (
+        session.rounds_completed
+        if isinstance(session.rounds_completed, list)
+        else []
+    )
+    round_scores = (
+        session.round_scores if isinstance(session.round_scores, dict) else {}
+    )
+    transcript = session.transcript if isinstance(session.transcript, list) else []
+    coding_ledger_data = (
+        coding_ledger.ledger_data
+        if coding_ledger and isinstance(coding_ledger.ledger_data, dict)
+        else {}
+    )
     coding_gate_required = (
         session.interview_round == "Behavioral/HR"
-        and "Technical/Screening" in session.rounds_completed
-        and (not coding_ledger or coding_ledger.ledger_data.get("status") != "completed")
+        and "Technical/Screening" in rounds_completed
+        and coding_ledger_data.get("status") != "completed"
     )
     selection_result = _session_selection_result(session)
     return {
