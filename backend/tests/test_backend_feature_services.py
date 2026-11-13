@@ -8,7 +8,12 @@ from unittest.mock import AsyncMock, patch
 import httpx
 from auth import auth_utils
 from core.behavioral_analysis import analyze_speaking_metrics
-from core.round_config import get_round_config, get_rounds_for_role
+from core.round_config import (
+    get_candidate_experience_level,
+    get_next_round,
+    get_round_config,
+    get_rounds_for_role,
+)
 from core.schemas import AnswerRetry, CandidateProfile
 from services.gemini_service import AIProviderTimeout, AIService, gemini_service
 from services.billing import build_upi_payment_uri
@@ -101,6 +106,55 @@ class BackendFeatureServiceTests(unittest.TestCase):
         self.assertEqual(
             get_rounds_for_role("Analyst", company_industry="Healthcare & Medical")[0],
             "Healthcare Screening",
+        )
+
+    def test_round_sequences_match_candidate_experience_level(self):
+        fresher_rounds = get_rounds_for_role(
+            "Software Engineer", candidate_level="fresher"
+        )
+        self.assertEqual(
+            fresher_rounds,
+            ("Technical/Screening", "Behavioral/HR", "System Design"),
+        )
+        self.assertEqual(
+            get_candidate_experience_level("college_student", 1.5),
+            "fresher",
+        )
+        self.assertEqual(
+            get_candidate_experience_level("employed", 0),
+            "experienced",
+        )
+        self.assertEqual(
+            get_candidate_experience_level(None),
+            "general",
+        )
+        self.assertEqual(
+            get_rounds_for_role("Software Engineer", candidate_level="experienced"),
+            get_rounds_for_role("Software Engineer"),
+        )
+
+    def test_round_transitions_follow_the_persisted_interview_plan(self):
+        fresher_plan = (
+            "Technical/Screening",
+            "Behavioral/HR",
+            "System Design",
+        )
+        self.assertEqual(
+            get_next_round(
+                "Behavioral/HR",
+                "Software Engineer",
+                2,
+                planned_rounds=fresher_plan,
+            ),
+            "System Design",
+        )
+        self.assertIsNone(
+            get_next_round(
+                "System Design",
+                "Software Engineer",
+                2,
+                planned_rounds=fresher_plan,
+            )
         )
 
     def test_resume_keyword_match_reports_an_explainable_score(self):

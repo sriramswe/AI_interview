@@ -1051,3 +1051,10 @@ export default function DashboardPage() {
         <aside className="side-stack">
           <BillingPanel />
           <SchedulePanel />
+        </aside>
+      </div>
+      <ProgressTracker token={token} />
+      <footer className="footer-note">Your camera and microphone are accessed only after you choose to enable them.</footer>
+    </main>
+  )
+}

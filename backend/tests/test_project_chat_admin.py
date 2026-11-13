@@ -85,6 +85,75 @@ class ProjectChatAdminTests(unittest.TestCase):
         self.assertEqual(response.status_code, 201, response.text)
         return {"Authorization": f"Bearer {response.json()['access_token']}"}
 
+    def test_round_preview_uses_the_authenticated_candidate_profile(self):
+        response = self.client.get(
+            "/api/interviews/rounds",
+            params={"role": "Software Engineer"},
+            headers=self.user_headers,
+        )
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(response.json()[0]["candidate_level"], "general")
+        self.assertEqual(len(response.json()), 5)
+
+        with database.SessionLocal() as db:
+            user = db.scalar(select(User).where(User.email.like("user-%")))
+            profile = CandidateProfile(
+                user_id=user.id,
+                employment_status="college_student",
+                years_of_experience=1.5,
+            )
+            db.add(profile)
+            db.commit()
+
+        fresher_response = self.client.get(
+            "/api/interviews/rounds",
+            params={"role": "Software Engineer"},
+            headers=self.user_headers,
+        )
+        self.assertEqual(fresher_response.status_code, 200, fresher_response.text)
+        self.assertEqual(fresher_response.json()[0]["candidate_level"], "fresher")
+        self.assertEqual(
+            [round_info["name"] for round_info in fresher_response.json()],
+            ["Technical/Screening", "Behavioral/HR", "System Design"],
+        )
+
+        with database.SessionLocal() as db:
+            user = db.scalar(select(User).where(User.email.like("user-%")))
+            profile = db.get(CandidateProfile, user.id)
+            profile.employment_status = "employed"
+            profile.years_of_experience = 5
+            db.commit()
+
+        experienced_response = self.client.get(
+            "/api/interviews/rounds",
+            params={"role": "Software Engineer"},
+            headers=self.user_headers,
+        )
+        self.assertEqual(experienced_response.status_code, 200, experienced_response.text)
+        self.assertEqual(experienced_response.json()[0]["candidate_level"], "experienced")
+        self.assertEqual(len(experienced_response.json()), 5)
+
+    def test_session_round_plan_is_stable_after_candidate_profile_changes(self):
+        planned_rounds = [
+            "Technical/Screening",
+            "Behavioral/HR",
+            "System Design",
+        ]
+        session = InterviewSession(
+            user_id=1,
+            role_category="Software Engineer",
+            sub_role="Backend",
+            transcript=[
+                {
+                    "role": "system",
+                    "candidate_level": "fresher",
+                    "planned_rounds": planned_rounds,
+                }
+            ],
+        )
+
+        self.assertEqual(backend_app._session_round_plan(session), planned_rounds)
+
     def _add_interview_session(self, created_at):
         with database.SessionLocal() as db:
             user = db.scalar(select(User).where(User.email.like("user-%")))
