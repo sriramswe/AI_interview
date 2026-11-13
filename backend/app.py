@@ -2925,6 +2925,9 @@ async def submit_answer(
         selection_result = _session_selection_result(session)
         selection_status = selection_result["selection_status"]
         selection_score = selection_result["selection_score"]
+        pending_completion = pending_answer.get("completion")
+        if not isinstance(pending_completion, dict):
+            pending_completion = {}
         company_intel = _session_company_intelligence(session)
         try:
             master_report_raw = await gemini_service.generate_master_report({
@@ -2974,7 +2977,8 @@ async def submit_answer(
                 "coding_gate_required": False,
                 "behavioral_metrics": pending_answer.get("behavioral_metrics"),
                 "overall_message": (
-                    "All interview rounds are complete. The final scorecard could not "
+                    pending_completion.get("message")
+                    or "All interview rounds are complete. The final scorecard could not "
                     "be generated yet; retry the scorecard when ready."
                 ),
             }
@@ -2985,10 +2989,7 @@ async def submit_answer(
         completed_answer["completion"] = {
             "status": "completed",
             **selection_result,
-            "message": (
-                pending_answer.get("completion", {}).get("message")
-                or "All interview rounds are complete."
-            ),
+            "message": pending_completion.get("message") or "All interview rounds are complete.",
         }
         session.transcript = [
             *existing_transcript[:-1],
@@ -3375,7 +3376,8 @@ async def submit_answer(
             "completion": {
                 "status": "failed",
                 "failed_round": session.interview_round,
-                **selection_result,
+                "selection_status": selection_status,
+                "selection_score": selection_score,
                 "message": completion_message,
             },
         }
@@ -3924,6 +3926,7 @@ def get_interview_history_detail(
         and "Technical/Screening" in session.rounds_completed
         and (not coding_ledger or coding_ledger.ledger_data.get("status") != "completed")
     )
+    selection_result = _session_selection_result(session)
     return {
         "session_id": session.id,
         "role": session.role_category,
@@ -3939,8 +3942,7 @@ def get_interview_history_detail(
         "coding_gate_required": coding_gate_required,
         "category": session.category,
         "status": session.overall_status,
-        "selection_status": selection_status,
-        "selection_score": selection_score,
+        **selection_result,
         "rounds_completed": session.rounds_completed,
         "round_scores": session.round_scores,
         "average_score": round(session.average_score, 1),
