@@ -159,6 +159,8 @@ TECHNICAL_ROLE_TERMS = (
     "systems architect",
 )
 
+FRESHER_INAPPROPRIATE_ROUNDS = frozenset({"Managerial", "Final/Director"})
+
 
 def _contains_domain_term(text: str, terms: tuple[str, ...]) -> bool:
     return any(
@@ -363,27 +365,67 @@ ROUND_CRITERIA: dict[str, tuple[str, ...]] = {
 }
 
 
+def get_candidate_experience_level(
+    employment_status: str | None,
+    years_of_experience: float | None = None,
+    current_role: str | None = None,
+) -> str:
+    if (
+        (years_of_experience is not None and years_of_experience > 0)
+        or employment_status == "employed"
+        or (
+            employment_status in {"unemployed", "career_changer"}
+            and bool(current_role and current_role.strip())
+        )
+    ):
+        return "experienced"
+    if employment_status in {
+        "school_student",
+        "college_student",
+        "recent_graduate",
+    }:
+        return "fresher"
+    return "general"
+
+
 def get_rounds_for_role(
     role_category: str,
     job_description: str | None = None,
     company_industry: str | None = None,
+    *,
+    candidate_level: str | None = None,
 ) -> Sequence[str]:
     role_text = role_category.casefold()
+    rounds: Sequence[str] | None = None
     for domain, terms in DOMAIN_TERMS.items():
         if _contains_domain_term(role_text, terms):
-            return ROUND_SEQUENCES[domain]
-    if _contains_domain_term(role_text, TECHNICAL_ROLE_TERMS):
-        return ROUND_SEQUENCES["technology"]
+            rounds = ROUND_SEQUENCES[domain]
+            break
+    if rounds is None and _contains_domain_term(role_text, TECHNICAL_ROLE_TERMS):
+        rounds = ROUND_SEQUENCES["technology"]
 
-    description_text = (job_description or "").casefold()
-    for domain, terms in DOMAIN_TERMS.items():
-        if _contains_domain_term(description_text, terms):
-            return ROUND_SEQUENCES[domain]
-    industry_text = (company_industry or "").casefold()
-    for domain, terms in DOMAIN_TERMS.items():
-        if _contains_domain_term(industry_text, terms):
-            return ROUND_SEQUENCES[domain]
-    return ROUND_SEQUENCES["technology"]
+    if rounds is None:
+        description_text = (job_description or "").casefold()
+        for domain, terms in DOMAIN_TERMS.items():
+            if _contains_domain_term(description_text, terms):
+                rounds = ROUND_SEQUENCES[domain]
+                break
+    if rounds is None:
+        industry_text = (company_industry or "").casefold()
+        for domain, terms in DOMAIN_TERMS.items():
+            if _contains_domain_term(industry_text, terms):
+                rounds = ROUND_SEQUENCES[domain]
+                break
+    if rounds is None:
+        rounds = ROUND_SEQUENCES["technology"]
+
+    if candidate_level == "fresher":
+        return tuple(
+            round_name
+            for round_name in rounds
+            if round_name not in FRESHER_INAPPROPRIATE_ROUNDS
+        )
+    return rounds
 
 
 def get_first_round(
@@ -391,10 +433,15 @@ def get_first_round(
     difficulty_level: int,
     job_description: str | None = None,
     company_industry: str | None = None,
+    *,
+    candidate_level: str | None = None,
 ) -> str:
     del difficulty_level
     return get_rounds_for_role(
-        role_category, job_description, company_industry
+        role_category,
+        job_description,
+        company_industry,
+        candidate_level=candidate_level,
     )[0]
 
 
@@ -417,10 +464,16 @@ def get_next_round(
     difficulty_level: int,
     job_description: str | None = None,
     company_industry: str | None = None,
+    *,
+    candidate_level: str | None = None,
+    planned_rounds: Sequence[str] | None = None,
 ) -> str | None:
     del difficulty_level
-    rounds = get_rounds_for_role(
-        role_category, job_description, company_industry
+    rounds = planned_rounds or get_rounds_for_role(
+        role_category,
+        job_description,
+        company_industry,
+        candidate_level=candidate_level,
     )
     try:
         current_index = rounds.index(current_round)
