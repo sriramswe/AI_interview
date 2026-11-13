@@ -4200,20 +4200,38 @@ async def generate_interview_learning_roadmap(
         await gemini_service.generate_learning_roadmap(session_data)
     )
     days = roadmap.get("days")
-    if (
-        not isinstance(days, list)
-        or len(days) != 7
+    invalid_fields = []
+    if not isinstance(days, list) or len(days) != 7:
+        invalid_fields.append("days")
+    elif any(
+        not isinstance(day, dict)
+        or isinstance(day.get("day"), bool)
+        or day.get("day") != index
+        or not isinstance(day.get("focus"), str)
+        or not day["focus"].strip()
+        or not isinstance(day.get("activities"), list)
         or any(
-            not isinstance(day, dict)
-            or day.get("day") != index
-            or not isinstance(day.get("focus"), str)
-            or not isinstance(day.get("activities"), list)
-            or not isinstance(day.get("practice_prompt"), str)
-            for index, day in enumerate(days, start=1)
+            not isinstance(activity, str) or not activity.strip()
+            for activity in day["activities"]
         )
-        or not isinstance(roadmap.get("failed_topics"), list)
-        or not isinstance(roadmap.get("resource_recommendations"), list)
+        or not isinstance(day.get("practice_prompt"), str)
+        or not day["practice_prompt"].strip()
+        for index, day in enumerate(days, start=1)
     ):
+        invalid_fields.append("days[].day/focus/activities/practice_prompt")
+    for field in ("failed_topics", "resource_recommendations"):
+        items = roadmap.get(field)
+        if not isinstance(items, list) or any(
+            not isinstance(item, str) or not item.strip() for item in items
+        ):
+            invalid_fields.append(field)
+    if invalid_fields:
+        logger.warning(
+            "AI service returned an invalid learning roadmap schema "
+            "(session_id=%s, invalid_fields=%s)",
+            session.id,
+            ", ".join(invalid_fields),
+        )
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail="The AI service returned an invalid 7-day learning roadmap.",

@@ -176,6 +176,13 @@ class BackendFeatureServiceTests(unittest.TestCase):
 
         self.assertEqual(response, '{"days": []}')
         self.assertTrue(generate.await_args.kwargs["json_mode"])
+        self.assertEqual(
+            generate.await_args.kwargs["generation_options"]["temperature"],
+            0.1,
+        )
+        prompt = generate.await_args.args[0]
+        self.assertIn("exactly these top-level keys", prompt)
+        self.assertIn("day (a JSON integer)", prompt)
 
     def test_resume_keyword_match_reports_an_explainable_score(self):
         result = analyze_resume_match(

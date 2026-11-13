@@ -769,13 +769,18 @@ settings, account data, prices, or actions.
     async def generate_learning_roadmap(self, session_data: dict) -> str:
         return await self._generate(
             "Create a practical 7-day interview learning roadmap based only on the "
-            "candidate's interview evidence. Return only JSON with exactly seven "
-            'objects in "days", numbered 1 through 7. Each day must contain "day", '
-            '"focus", "activities" (a list), and "practice_prompt". Also include '
-            '"failed_topics" and "resource_recommendations" (lists). Do not invent '
-            "URLs, courses, or credentials; recommend resource types or well-known "
-            "topics only when supported by the evidence.\n"
+            "candidate's interview evidence. Return exactly one JSON object with "
+            "exactly these top-level keys: days, failed_topics, "
+            "resource_recommendations. days must be an array of exactly seven "
+            "objects numbered 1 through 7. Each day object must contain day (a JSON "
+            "integer), focus (a non-empty string), activities (an array of non-empty "
+            "strings), and practice_prompt (a non-empty string). failed_topics and "
+            "resource_recommendations must each be arrays of strings; use an empty "
+            "array if there is no supported item. Do not wrap the JSON in markdown "
+            "or add prose. Do not invent URLs, courses, or credentials; recommend "
+            "resource types or well-known topics only when supported by the evidence.\n"
             f"Interview evidence:\n{session_data}",
+            generation_options={"temperature": 0.1},
             json_mode=True,
         )
 
