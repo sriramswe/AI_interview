@@ -170,7 +170,7 @@ export async function downloadLearningRoadmapPdf(roadmap, { role, company } = {}
       String(day.practice_prompt || ''),
       contentWidth - 16,
     )
-    const cardHeight = 24
+    const cardHeight = 34
       + focusLines.length * 5
       + activityLines.reduce((total, lines) => total + lines.length * 4.2 + 2, 0)
       + promptLines.length * 4.2
