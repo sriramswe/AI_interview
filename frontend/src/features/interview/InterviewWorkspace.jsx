@@ -165,6 +165,10 @@ export default function InterviewWorkspace() {
     )
   }
 
+  const selectionLabel = interview.selection_status === 'selected'
+    ? 'Selected'
+    : interview.selection_status === 'failed' ? 'Failed' : 'Completed'
+
   return (
     <section className="panel interview-panel">
       <div className="section-heading">
@@ -367,20 +371,16 @@ export default function InterviewWorkspace() {
         <div className="feedback-card">
           <p className="eyebrow">
             {interview.master_report_pending
-              ? `Score outcome: ${interview.selection_status === 'selected' ? 'Selected' : 'Failed'} · scorecard pending`
+              ? `Score outcome: ${selectionLabel} · scorecard pending`
               : 'Score-based result · Practice simulation only'}
           </p>
           <h3 className="hiring-verdict">
             {interview.master_report_pending
-              ? interview.selection_status === 'selected'
-                ? 'Selected'
-                : 'Interview rounds completed'
+              ? selectionLabel
               : interview.overall_status === 'failed'
                 ? `Failed${interview.failed_round ? ` · ${interview.failed_round}` : ''}`
-                : interview.selection_status === 'failed'
-                  ? 'Failed'
-                : interview.selection_status === 'selected'
-                  ? 'Selected'
+                : interview.selection_status
+                  ? selectionLabel
                   : interview.master_report?.final_verdict || 'Interview complete'}
           </h3>
           {interview.selection_score !== null && interview.selection_score !== undefined && (
