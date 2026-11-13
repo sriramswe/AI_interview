@@ -32,6 +32,34 @@ INTERVIEWER_PERSONAS = {
     ),
 }
 
+ROUND_EXPERIENCE_GUIDANCE = {
+    "Technical/Screening": (
+        "Fresher: test role fundamentals and problem-solving; accept examples from "
+        "coursework, internships, and personal projects without assuming production ownership. "
+        "Experienced: probe technical decisions, production constraints, scale, and measurable impact."
+    ),
+    "Behavioral/HR": (
+        "Fresher: invite STAR examples from study, projects, volunteering, or internships; "
+        "do not require extensive workplace history. Experienced: probe workplace ownership, "
+        "collaboration, conflict resolution, and evidence-backed outcomes using STAR."
+    ),
+    "System Design": (
+        "Fresher: use a small, familiar system and assess requirements, core components, "
+        "and basic trade-offs without expecting expert-scale architecture. Experienced: "
+        "probe ambiguous requirements, scale, reliability, security, costs, and architecture trade-offs."
+    ),
+    "Managerial": (
+        "Fresher: assess initiative, collaboration, and accountability in a class or project "
+        "team; do not assume direct reports or management experience. Experienced: probe "
+        "coaching, conflict resolution, prioritization, team development, and delivery outcomes."
+    ),
+    "Final/Director": (
+        "Fresher: focus on career goals, learning, motivation, and role fit rather than "
+        "executive strategy. Experienced: probe strategic decisions, long-term vision, "
+        "organizational influence, and measurable business impact."
+    ),
+}
+
 
 def _extract_text(content: Any, *, skip_thoughts: bool = False) -> str:
     if isinstance(content, str):
@@ -527,6 +555,12 @@ settings, account data, prices, or actions.
         conversation_context = "\n".join(
             str(item)[:500] for item in (chat_history or [])[-6:]
         ) or "No previous questions"
+        round_experience_guidance = ROUND_EXPERIENCE_GUIDANCE.get(
+            round_name or "",
+            "For a fresher, assess fundamentals and learning with realistic academic or "
+            "project examples. For an experienced candidate, probe ownership, decisions, "
+            "and impact without assuming experience not documented in the candidate context.",
+        )
         return await self._generate(
             "Write exactly one concise interview question, without a preamble. "
             "When resume content is provided, ground the question in a specific "
@@ -545,6 +579,9 @@ settings, account data, prices, or actions.
             f"Question category: {question_category or 'Choose the most relevant resume-based area'}. "
             f"Panel interview: {is_panel}. Interviewer: {interviewer_name or 'interviewer'}.\n"
             f"Interviewer persona: {persona_guidance}\n"
+            "Adapt the expectations below to the candidate's documented experience level; "
+            "do not penalize a fresher for lacking workplace or people-management history.\n"
+            f"Round-specific fresher/experienced focus:\n{round_experience_guidance}\n"
             f"Job description:\n{(jd or 'Not provided')[:1800]}\n"
             f"Resume evidence chunks:\n{(resume_text or 'Not provided')[:3000]}\n"
             f"Company information:\n{company_context}\n"

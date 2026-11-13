@@ -189,6 +189,55 @@ class BackendFeatureServiceTests(unittest.TestCase):
             generate.await_args.kwargs["generation_options"]["num_predict"], 256
         )
 
+    def test_interview_question_guidance_is_tailored_by_round_and_experience(self):
+        cases = (
+            (
+                "Technical/Screening",
+                "Stage: recent graduate; Years of experience: 0",
+                "without assuming production ownership",
+            ),
+            (
+                "Behavioral/HR",
+                "Stage: employed; Years of experience: 8",
+                "probe workplace ownership",
+            ),
+            (
+                "System Design",
+                "Stage: recent graduate; Years of experience: 0",
+                "use a small, familiar system",
+            ),
+            (
+                "Managerial",
+                "Stage: recent graduate; Years of experience: 0",
+                "do not assume direct reports",
+            ),
+            (
+                "Final/Director",
+                "Stage: employed; Years of experience: 8",
+                "probe strategic decisions",
+            ),
+        )
+        for round_name, candidate_context, expected_guidance in cases:
+            with self.subTest(round_name=round_name):
+                with patch(
+                    "services.gemini_service.gemini_service._generate",
+                    new=AsyncMock(return_value="Tell me about your approach."),
+                ) as generate:
+                    asyncio.run(
+                        gemini_service.generate_interview_question(
+                            role="Software Engineer",
+                            sub_role="Backend",
+                            difficulty=2,
+                            round_name=round_name,
+                            candidate_context=candidate_context,
+                        )
+                    )
+
+                prompt = generate.await_args.args[0]
+                self.assertIn(candidate_context, prompt)
+                self.assertIn("Round-specific fresher/experienced focus", prompt)
+                self.assertIn(expected_guidance, prompt)
+
     def test_answer_evaluation_requests_json_mode(self):
         with patch(
             "services.gemini_service.gemini_service._generate",
