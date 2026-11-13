@@ -1118,6 +1118,54 @@ class ProjectChatAdminTests(unittest.TestCase):
                 backend_app._session_questions_per_round(session),
                 5,
             )
+
+    def test_interview_start_persists_the_profile_based_round_plan(self):
+        with database.SessionLocal() as db:
+            user = db.scalar(select(User).where(User.email.like("user-%")))
+            db.add(
+                CandidateProfile(
+                    user_id=user.id,
+                    employment_status="college_student",
+                    years_of_experience=1,
+                )
+            )
+            db.commit()
+
+        with (
+            patch.object(
+                backend_app,
+                "_get_company_intelligence",
+                new_callable=AsyncMock,
+                return_value=None,
+            ),
+            patch.object(
+                backend_app.gemini_service,
+                "generate_interview_question",
+                new_callable=AsyncMock,
+                return_value="How would you approach this technical problem?",
+            ),
+        ):
+            response = self.client.post(
+                "/interviews/start",
+                headers=self.user_headers,
+                json={
+                    "role_category": "Software Engineer",
+                    "sub_role": "Backend",
+                },
+            )
+
+        self.assertEqual(response.status_code, 200, response.text)
+        with database.SessionLocal() as db:
+            session = db.get(InterviewSession, response.json()["id"])
+            self.assertEqual(session.interview_round, "Technical/Screening")
+            self.assertEqual(
+                backend_app._session_round_plan(session),
+                [
+                    "Technical/Screening",
+                    "Behavioral/HR",
+                    "System Design",
+                ],
+            )
         history = self.client.get(
             f"/api/interviews/history/{interview['id']}",
             headers=self.user_headers,
