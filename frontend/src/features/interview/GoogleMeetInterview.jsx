@@ -62,13 +62,16 @@ export default function GoogleMeetInterview({
   const [soundEnabled, setSoundEnabled] = useState(true)
   const [isSpeakingQuestion, setIsSpeakingQuestion] = useState(false)
   const [chatHistory, setChatHistory] = useState([])
-  const [pendingAnswer, setPendingAnswer] = useState('')
+  const [pendingAnswerOverride, setPendingAnswerOverride] = useState(null)
   const [discardingPendingAnswer, setDiscardingPendingAnswer] = useState(false)
   const [currentTime, setCurrentTime] = useState('')
   const [elapsedSeconds, setElapsedSeconds] = useState(0)
   const [answerStartedAt, setAnswerStartedAt] = useState(Date.now())
   const chatHistoryRef = useRef(null)
   const pendingCandidateMessageRef = useRef(null)
+  const pendingAnswer = pendingAnswerOverride?.interviewId === interview.id
+    ? pendingAnswerOverride.value
+    : (interview.pending_answer || '')
 
   const questionTotal = interview.questions_per_round || 10
   const questionsAnswered = interview.questions_asked ?? 0
@@ -106,10 +109,6 @@ export default function GoogleMeetInterview({
       })
     }
   }, [activeDrawer, chatHistory])
-
-  useEffect(() => {
-    setPendingAnswer(interview.pending_answer || '')
-  }, [interview.id, interview.pending_answer])
 
   // Initial camera startup if not enabled
   useEffect(() => {
@@ -231,7 +230,7 @@ export default function GoogleMeetInterview({
           : message
       )))
       pendingCandidateMessageRef.current = null
-      setPendingAnswer('')
+      setPendingAnswerOverride(null)
       setAnswer('')
       setHandRaised(false)
       setActiveDrawer('chat')
@@ -241,7 +240,10 @@ export default function GoogleMeetInterview({
           ? { ...message, deliveryStatus: 'retry' }
           : message
       )))
-      setPendingAnswer(submittedAnswer)
+      setPendingAnswerOverride({
+        interviewId: interview.id,
+        value: submittedAnswer,
+      })
     }
   }
 
@@ -259,7 +261,7 @@ export default function GoogleMeetInterview({
         (message) => message.id !== pendingMessageId,
       ))
       pendingCandidateMessageRef.current = null
-      setPendingAnswer('')
+      setPendingAnswerOverride(null)
       setAnswer('')
     } finally {
       setDiscardingPendingAnswer(false)
