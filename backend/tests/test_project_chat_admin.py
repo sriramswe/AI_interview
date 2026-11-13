@@ -1181,12 +1181,26 @@ class ProjectChatAdminTests(unittest.TestCase):
     def test_candidate_can_edit_saved_answer_after_ai_evaluation_failure(self):
         with database.SessionLocal() as db:
             user = db.scalar(select(User).where(User.email.like("user-%")))
+            db.add(
+                CandidateProfile(
+                    user_id=user.id,
+                    employment_status="recent_graduate",
+                    years_of_experience=0,
+                )
+            )
             session = InterviewSession(
                 user_id=user.id,
                 role_category="Software Engineer",
                 sub_role="Backend",
                 interview_round="Technical/Screening",
                 transcript=[
+                    {
+                        "role": "system",
+                        "candidate_profile": {
+                            "employment_status": "recent_graduate",
+                            "years_of_experience": 0,
+                        },
+                    },
                     {
                         "role": "assistant",
                         "content": "How would you design a scalable API?",
@@ -1241,6 +1255,10 @@ class ProjectChatAdminTests(unittest.TestCase):
         self.assertEqual(
             evaluate_answer.await_args.kwargs["answer"],
             improved_answer,
+        )
+        self.assertIn(
+            "Stage: recent graduate",
+            evaluate_answer.await_args_list[0].kwargs["candidate_context"],
         )
         with database.SessionLocal() as db:
             session = db.get(InterviewSession, interview_id)
