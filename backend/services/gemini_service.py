@@ -207,13 +207,16 @@ class AIService:
                             if openrouter_unavailable
                             else "all configured models were rate-limited or returned no text"
                         )
-                        recovery_hint = (
-                            " Configure OPENROUTER_PAID_FALLBACK_MODEL with a billed "
-                            "model to avoid relying only on rate-limited free models "
-                            "(paid usage may incur charges), or retry later."
-                            if not paid_fallback_model
-                            else " Retry after the configured model limits reset."
-                        )
+                        if openrouter_unavailable:
+                            recovery_hint = " Check OpenRouter availability and retry later."
+                        elif not paid_fallback_model:
+                            recovery_hint = (
+                                " Configure OPENROUTER_PAID_FALLBACK_MODEL with a billed "
+                                "model to avoid relying only on rate-limited free models "
+                                "(paid usage may incur charges), or retry later."
+                            )
+                        else:
+                            recovery_hint = " Retry after the configured model limits reset."
                         raise RuntimeError(
                             f"OpenRouter could not generate an answer: {reason} "
                             f"({', '.join(failed_models)}). Your submitted answer "

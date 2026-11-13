@@ -653,7 +653,10 @@ class BackendFeatureServiceTests(unittest.TestCase):
             ),
             patch("services.gemini_service.httpx.AsyncClient", CaptureClient),
         ):
-            with self.assertRaisesRegex(RuntimeError, "OpenRouter could not generate"):
+            with self.assertRaisesRegex(
+                RuntimeError,
+                "OpenRouter could not generate.*OPENROUTER_PAID_FALLBACK_MODEL",
+            ):
                 asyncio.run(AIService()._generate("test prompt"))
 
         self.assertEqual(
