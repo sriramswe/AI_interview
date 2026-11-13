@@ -86,19 +86,19 @@ function ScoreTrend({ sessions, unavailable }) {
 
 function SessionStatus({ status, selectionStatus }) {
   const normalized = String(status || '').toLowerCase()
-  const label = selectionStatus === 'selected'
-    ? 'Selected'
-    : selectionStatus === 'failed'
-      ? 'Failed'
-      : normalized === 'completed'
-    ? 'Completed'
-    : normalized === 'failed'
-      ? 'Keep practicing'
-      : normalized === 'in_progress'
-        ? 'In progress'
-        : status || 'Status unavailable'
+  let label = status || 'Status unavailable'
+  if (selectionStatus === 'selected') label = 'Selected'
+  else if (selectionStatus === 'failed') label = 'Failed'
+  else if (normalized === 'completed') label = 'Completed'
+  else if (normalized === 'failed') label = 'Keep practicing'
+  else if (normalized === 'in_progress') label = 'In progress'
 
-  return <span className={`progress-status ${normalized}`}>{label}</span>
+  let statusClass = normalized
+  if (selectionStatus === 'failed' || selectionStatus === 'selected') {
+    statusClass = selectionStatus === 'failed' ? 'failed' : 'completed'
+  }
+
+  return <span className={`progress-status ${statusClass}`}>{label}</span>
 }
 
 function RecentPractice({ history, unavailable }) {
