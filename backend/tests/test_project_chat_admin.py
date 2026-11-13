@@ -1118,6 +1118,12 @@ class ProjectChatAdminTests(unittest.TestCase):
                 backend_app._session_questions_per_round(session),
                 5,
             )
+        history = self.client.get(
+            f"/api/interviews/history/{interview['id']}",
+            headers=self.user_headers,
+        )
+        self.assertEqual(history.status_code, 200, history.text)
+        self.assertEqual(history.json()["questions_per_round"], 5)
 
     def test_interview_start_persists_the_profile_based_round_plan(self):
         with database.SessionLocal() as db:
@@ -1166,12 +1172,6 @@ class ProjectChatAdminTests(unittest.TestCase):
                     "System Design",
                 ],
             )
-        history = self.client.get(
-            f"/api/interviews/history/{interview['id']}",
-            headers=self.user_headers,
-        )
-        self.assertEqual(history.status_code, 200, history.text)
-        self.assertEqual(history.json()["questions_per_round"], 5)
 
     def test_selected_question_limit_controls_round_transition(self):
         with database.SessionLocal() as db:
