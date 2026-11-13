@@ -107,14 +107,6 @@ cors_origins = {
 }
 cors_origins.add("https://ai-interview-prep-swart-mu.vercel.app")
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=sorted(cors_origins),
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
 
 def _validate_hiring_report(value: dict) -> dict:
     verdicts = {"HIRE", "LEAN HIRE", "LEAN NO HIRE", "NO HIRE"}
@@ -4465,6 +4457,15 @@ async def upload_and_parse_resume(
         "detected_skills": detected_skills,
         "message": f"Resume analyzed successfully! Found {len(detected_skills)} matching core skills."
     }
+
+
+app = CORSMiddleware(
+    app=app,
+    allow_origins=sorted(cors_origins),
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 if __name__ == "__main__":

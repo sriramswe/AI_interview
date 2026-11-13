@@ -85,6 +85,38 @@ class ProjectChatAdminTests(unittest.TestCase):
         self.assertEqual(response.status_code, 201, response.text)
         return {"Authorization": f"Bearer {response.json()['access_token']}"}
 
+    def test_history_server_errors_keep_cors_headers(self):
+        with database.SessionLocal() as db:
+            user = db.scalar(select(User).where(User.email.like("user-%")))
+            session = InterviewSession(
+                user_id=user.id,
+                role_category="Software Engineer",
+                sub_role="Backend",
+            )
+            db.add(session)
+            db.commit()
+            interview_id = session.id
+
+        origin = "https://ai-interview-prep-swart-mu.vercel.app"
+        with (
+            patch.object(
+                backend_app,
+                "_session_selection_result",
+                side_effect=ValueError("test failure"),
+            ),
+            TestClient(backend_app.app, raise_server_exceptions=False) as client,
+        ):
+            response = client.get(
+                f"/api/interviews/history/{interview_id}",
+                headers={**self.user_headers, "Origin": origin},
+            )
+
+        self.assertEqual(response.status_code, 500)
+        self.assertEqual(
+            response.headers.get("access-control-allow-origin"),
+            origin,
+        )
+
     def test_round_preview_uses_the_authenticated_candidate_profile(self):
         response = self.client.get(
             "/api/interviews/rounds",
