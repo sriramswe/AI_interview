@@ -13,6 +13,7 @@ from core.round_config import (
     get_next_round,
     get_round_config,
     get_rounds_for_role,
+    get_score_based_outcome,
 )
 from core.schemas import AnswerRetry, CandidateProfile
 from services.gemini_service import AIProviderTimeout, AIService, gemini_service
@@ -156,6 +157,10 @@ class BackendFeatureServiceTests(unittest.TestCase):
                 planned_rounds=fresher_plan,
             )
         )
+
+    def test_score_outcome_uses_the_round_passing_threshold(self):
+        self.assertEqual(get_score_based_outcome(6), "selected")
+        self.assertEqual(get_score_based_outcome(5.99), "failed")
 
     def test_resume_keyword_match_reports_an_explainable_score(self):
         result = analyze_resume_match(

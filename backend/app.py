@@ -27,6 +27,7 @@ from auth import auth_utils
 from core import database, models, schemas
 from core.behavioral_analysis import analyze_speaking_metrics
 from core.round_config import (
+    PASSING_SCORE,
     get_candidate_experience_level,
     get_next_round,
     get_round_config,
@@ -2915,6 +2916,7 @@ async def submit_answer(
         raise HTTPException(status_code=409, detail="This interview session has already ended.")
 
     if pending_final_report:
+        selection_status, selection_score = _session_selection_result(session)
         company_intel = _session_company_intelligence(session)
         try:
             master_report_raw = await gemini_service.generate_master_report({
@@ -2954,6 +2956,8 @@ async def submit_answer(
                 "round_passed": True,
                 "interview_completed": True,
                 "overall_status": "completed",
+                "selection_status": selection_status,
+                "selection_score": selection_score,
                 "rounds_completed": session.rounds_completed,
                 "round_scores": session.round_scores,
                 "round_score": round(session.score or 0, 1),
@@ -2973,7 +2977,12 @@ async def submit_answer(
         completed_answer["report_provider_status"] = report_provider_status
         completed_answer["completion"] = {
             "status": "completed",
-            "message": "Congratulations! You have completed all interview rounds.",
+            "selection_status": selection_status,
+            "selection_score": selection_score,
+            "message": (
+                pending_answer.get("completion", {}).get("message")
+                or "All interview rounds are complete."
+            ),
         }
         session.transcript = [
             *existing_transcript[:-1],
@@ -3001,6 +3010,8 @@ async def submit_answer(
             "round_passed": True,
             "interview_completed": True,
             "overall_status": "completed",
+            "selection_status": selection_status,
+            "selection_score": selection_score,
             "rounds_completed": session.rounds_completed,
             "round_scores": session.round_scores,
             "round_score": round(session.score or 0, 1),
@@ -3080,6 +3091,7 @@ async def submit_answer(
             and "Technical/Screening" in session.rounds_completed
             and (not coding_ledger or coding_ledger.ledger_data.get("status") != "completed")
         )
+        selection_status, selection_score = _session_selection_result(session)
         return {
             "evaluation": pending_answer["evaluation"],
             "next_question": next_question,
@@ -3347,13 +3359,18 @@ async def submit_answer(
         ]
         completion_message = (
             f"Interview ended because your {session.interview_round} score "
-            "did not meet the 6/10 round threshold."
+            f"did not meet the {PASSING_SCORE:g}/10 round threshold. "
+            "Score outcome: Failed."
         )
+        selection_status = get_score_based_outcome(round_average)
+        selection_score = round(round_average, 1)
         failed_answer = {
             **transcript[-1],
             "completion": {
                 "status": "failed",
                 "failed_round": session.interview_round,
+                "selection_status": selection_status,
+                "selection_score": selection_score,
                 "message": completion_message,
             },
         }
@@ -3374,6 +3391,8 @@ async def submit_answer(
             "round_completed": True,
             "round_passed": False,
             "overall_status": "failed",
+            "selection_status": selection_status,
+            "selection_score": selection_score,
             "overall_message": completion_message,
             "failed_round": session.interview_round,
             "rounds_completed": session.rounds_completed,
@@ -3468,7 +3487,28 @@ async def submit_answer(
     # All rounds successfully finished
     session.rounds_completed = completed_rounds
     session.overall_status = "completed"
-    pending_report_answer = {**transcript[-1], "report_pending": True}
+    overall_score = (
+        sum(session.round_scores.values()) / len(session.round_scores)
+        if session.round_scores
+        else 0
+    )
+    selection_status = get_score_based_outcome(overall_score)
+    selection_score = round(overall_score, 1)
+    completion_message = (
+        f"Score outcome: {selection_status.title()} "
+        f"(overall score {selection_score}/10; passing threshold "
+        f"{PASSING_SCORE:g}/10). This is a practice simulation."
+    )
+    pending_report_answer = {
+        **transcript[-1],
+        "report_pending": True,
+        "completion": {
+            "status": "completed",
+            "selection_status": selection_status,
+            "selection_score": selection_score,
+            "message": completion_message,
+        },
+    }
     transcript = [*transcript[:-1], pending_report_answer]
     session.transcript = transcript
     db.commit()
@@ -3508,6 +3548,8 @@ async def submit_answer(
             "round_passed": True,
             "interview_completed": True,
             "overall_status": "completed",
+            "selection_status": selection_status,
+            "selection_score": selection_score,
             "rounds_completed": session.rounds_completed,
             "round_scores": session.round_scores,
             "round_score": round(round_average, 1),
@@ -3516,18 +3558,16 @@ async def submit_answer(
             "questions_per_round": round_config["max_questions"],
             "coding_gate_required": False,
             "behavioral_metrics": behavioral_metrics,
-            "overall_message": (
-                "All interview rounds are complete. The final scorecard could not "
-                "be generated yet; retry the scorecard when ready."
-            ),
+            "overall_message": completion_message,
         }
-    completion_message = "Congratulations! You have completed all interview rounds."
     completed_answer = {**transcript[-1]}
     completed_answer.pop("report_pending", None)
     completed_answer["master_report"] = master_report
     completed_answer["report_provider_status"] = report_provider_status
     completed_answer["completion"] = {
         "status": "completed",
+        "selection_status": selection_status,
+        "selection_score": selection_score,
         "message": completion_message,
     }
     transcript = [*transcript[:-1], completed_answer]
@@ -3555,6 +3595,8 @@ async def submit_answer(
         "round_passed": True,
         "interview_completed": True,
         "overall_status": "completed",
+        "selection_status": selection_status,
+        "selection_score": selection_score,
         "rounds_completed": session.rounds_completed,
         "round_scores": session.round_scores,
         "round_score": round(round_average, 1),
@@ -3891,6 +3933,8 @@ def get_interview_history_detail(
         "coding_gate_required": coding_gate_required,
         "category": session.category,
         "status": session.overall_status,
+        "selection_status": selection_status,
+        "selection_score": selection_score,
         "rounds_completed": session.rounds_completed,
         "round_scores": session.round_scores,
         "average_score": round(session.average_score, 1),

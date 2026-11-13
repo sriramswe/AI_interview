@@ -394,6 +394,8 @@ export function InterviewAppProvider({ children }) {
             ? (data.round_passed ? 'completed' : 'failed')
             : 'in_progress'
         ),
+        selection_status: data.selection_status ?? null,
+        selection_score: data.selection_score ?? null,
         overall_message: data.overall_message,
         failed_round: data.failed_round,
         round_completed: data.round_completed,
@@ -514,6 +516,8 @@ export function InterviewAppProvider({ children }) {
         first_question: currentQuestion?.content || 'Interview complete',
         finished: saved.status !== 'in_progress',
         overall_status: saved.status,
+        selection_status: saved.selection_status || null,
+        selection_score: saved.selection_score ?? null,
         overall_message: completionTurn?.completion?.message || (
           pendingFinalReport
             ? 'All interview rounds are complete. The final scorecard could not be generated yet; retry the scorecard when ready.'

@@ -367,20 +367,30 @@ export default function InterviewWorkspace() {
         <div className="feedback-card">
           <p className="eyebrow">
             {interview.master_report_pending
-              ? 'Interview complete · scorecard pending'
+              ? `Score outcome: ${interview.selection_status || 'completed'} · scorecard pending`
               : interview.overall_status === 'failed'
-              ? 'Practice session ended'
-              : 'Final hiring decision · Practice simulation only'}
+                ? 'Score outcome · Practice simulation only'
+                : 'Score outcome · Practice simulation only'}
           </p>
           <h3 className="hiring-verdict">
             {interview.master_report_pending
-              ? 'All interview rounds completed'
+              ? interview.selection_status === 'selected'
+                ? 'Selected'
+                : 'Interview rounds completed'
               : interview.overall_status === 'failed'
-              ? `Round not passed${interview.failed_round ? ` · ${interview.failed_round}` : ''}`
-              : interview.master_report?.final_verdict || 'Interview complete'}
+                ? `Failed${interview.failed_round ? ` · ${interview.failed_round}` : ''}`
+                : interview.selection_status === 'selected'
+                  ? 'Selected'
+                  : interview.master_report?.final_verdict || 'Interview complete'}
           </h3>
+          {interview.selection_score !== null && interview.selection_score !== undefined && (
+            <p>Score-based result: {interview.selection_score}/10</p>
+          )}
           {interview.master_report?.overall_score !== undefined && (
-            <p>Overall score: {interview.master_report.overall_score}/10</p>
+            <p>AI scorecard overall score: {interview.master_report.overall_score}/10</p>
+          )}
+          {interview.master_report?.final_verdict && (
+            <p>AI scorecard verdict: {interview.master_report.final_verdict}</p>
           )}
           {interview.report_provider_status && (
             <p className="fine-print">Final scorecard: {interview.report_provider_status}</p>
