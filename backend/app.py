@@ -405,18 +405,21 @@ def _session_round_plan(session: models.InterviewSession) -> list[str]:
 def _session_selection_result(
     session: models.InterviewSession,
 ) -> dict[str, str | float | None]:
+    round_scores = (
+        session.round_scores if isinstance(session.round_scores, dict) else {}
+    )
     if session.overall_status == "failed":
-        score = (session.round_scores or {}).get(session.interview_round, session.score)
+        score = round_scores.get(session.interview_round, session.score)
         if isinstance(score, (int, float)) and not isinstance(score, bool):
             return {
                 "selection_status": "failed",
                 "selection_score": round(float(score), 1),
             }
         return {"selection_status": "failed", "selection_score": None}
-    if session.overall_status != "completed" or not session.round_scores:
+    if session.overall_status != "completed" or not round_scores:
         return {"selection_status": None, "selection_score": None}
 
-    scores = list(session.round_scores.values())
+    scores = list(round_scores.values())
     if any(
         not isinstance(score, (int, float)) or isinstance(score, bool)
         for score in scores
@@ -2150,7 +2153,12 @@ def _session_practice_question_ids(session: models.InterviewSession) -> list[int
 
 def _session_questions_per_round(session: models.InterviewSession) -> int:
     transcript = session.transcript
-    if transcript and isinstance(transcript[0], dict) and transcript[0].get("role") == "system":
+    if (
+        isinstance(transcript, list)
+        and transcript
+        and isinstance(transcript[0], dict)
+        and transcript[0].get("role") == "system"
+    ):
         configured_count = transcript[0].get("questions_per_round")
         if configured_count in {5, 10, 20}:
             return configured_count
@@ -3093,10 +3101,24 @@ async def submit_answer(
                 models.CodingRoundLedger.user_id == current_user.id,
             )
         )
+        rounds_completed = (
+            session.rounds_completed
+            if isinstance(session.rounds_completed, list)
+            else []
+        )
+        round_scores = (
+            session.round_scores if isinstance(session.round_scores, dict) else {}
+        )
+        transcript = session.transcript if isinstance(session.transcript, list) else []
+        coding_ledger_data = (
+            coding_ledger.ledger_data
+            if coding_ledger and isinstance(coding_ledger.ledger_data, dict)
+            else {}
+        )
         coding_gate_required = (
             session.interview_round == "Behavioral/HR"
-            and "Technical/Screening" in session.rounds_completed
-            and (not coding_ledger or coding_ledger.ledger_data.get("status") != "completed")
+            and "Technical/Screening" in rounds_completed
+            and coding_ledger_data.get("status") != "completed"
         )
         selection_result = _session_selection_result(session)
         return {
@@ -3943,12 +3965,12 @@ def get_interview_history_detail(
         "category": session.category,
         "status": session.overall_status,
         **selection_result,
-        "rounds_completed": session.rounds_completed,
-        "round_scores": session.round_scores,
-        "average_score": round(session.average_score, 1),
+        "rounds_completed": rounds_completed,
+        "round_scores": round_scores,
+        "average_score": round(session.average_score or 0, 1),
         "total_questions": len(answers),
-        "transcript": session.transcript,
-        "created_at": session.created_at.isoformat(),
+        "transcript": transcript,
+        "created_at": session.created_at.isoformat() if session.created_at else None,
         "answers": [
             {
                 "answer_id": answer.id,
@@ -3963,11 +3985,11 @@ def get_interview_history_detail(
                 "final_score": answer.final_score,
                 "missing_concepts": [
                     item.strip()
-                    for item in answer.missing_concepts.split(",")
+                    for item in (answer.missing_concepts or "").split(",")
                     if item.strip()
                 ],
                 "feedback": answer.feedback,
-                "created_at": answer.created_at.isoformat(),
+                "created_at": answer.created_at.isoformat() if answer.created_at else None,
             }
             for answer in answers
         ],
