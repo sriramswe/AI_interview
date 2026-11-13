@@ -1422,6 +1422,14 @@ class ProjectChatAdminTests(unittest.TestCase):
             interview_id = session.id
             answer_id = answer.id
 
+        history = self.client.get(
+            f"/api/interviews/history/{interview_id}",
+            headers=self.user_headers,
+        )
+        self.assertEqual(history.status_code, 200, history.text)
+        self.assertEqual(history.json()["answers"][0]["answer_id"], answer_id)
+        self.assertEqual(history.json()["answers"][0]["missing_concepts"], [])
+
         forbidden = self.client.delete(
             f"/api/interviews/history/{interview_id}/answers/{answer_id}",
             headers=self.admin_headers,
