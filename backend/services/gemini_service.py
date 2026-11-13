@@ -601,11 +601,18 @@ settings, account data, prices, or actions.
         company: str | None = None,
         company_intel: Any = None,
         round_criteria: list[str] | None = None,
+        candidate_context: str | None = None,
     ) -> str:
         company_context = (
             json.dumps(company_intel, ensure_ascii=True, default=str)[:1000]
             if company_intel is not None
             else "Not available"
+        )
+        round_experience_guidance = ROUND_EXPERIENCE_GUIDANCE.get(
+            round_name,
+            "For a fresher, assess fundamentals and learning with realistic academic or "
+            "project examples. For an experienced candidate, probe ownership, decisions, "
+            "and impact without assuming experience not documented in the candidate context.",
         )
         return await self._generate(
             "Evaluate the candidate's answer. Return only a valid JSON object with "
@@ -615,6 +622,12 @@ settings, account data, prices, or actions.
             '"confidence", "technical_depth", and "assertiveness"; each must be an '
             'object with "score" (0 to 10) and "evidence" (string). Be fair, '
             "specific, and do not infer facts not present in the answer.\n"
+            "Calibrate expectations to the candidate's documented experience level. "
+            "Do not penalize a fresher for lacking workplace, production, or people-management "
+            "history; evaluate relevant academic, project, internship, and transferable examples. "
+            "For experienced candidates, evaluate depth and impact in proportion to the evidence.\n"
+            f"Round-specific fresher/experienced criteria:\n{round_experience_guidance}\n"
+            f"Candidate background: {(candidate_context or 'Not provided')[:800]}\n"
             f"Evaluate against these round-specific criteria: {round_criteria or 'Role-relevant knowledge, reasoning, and communication'}.\n"
             f"Role: {role}; round: {round_name}; company: {company or 'unspecified'}.\n"
             f"Company context: {company_context}\n"

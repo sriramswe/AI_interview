@@ -248,11 +248,16 @@ class BackendFeatureServiceTests(unittest.TestCase):
                     question="Explain your approach.",
                     answer="I would start by defining the requirements.",
                     role="Software Engineer",
-                    round_name="Technical",
+                    round_name="Managerial",
+                    candidate_context="Stage: recent graduate; Years of experience: 0",
                 )
             )
 
         self.assertTrue(generate.await_args.kwargs["json_mode"])
+        prompt = generate.await_args.args[0]
+        self.assertIn("Stage: recent graduate", prompt)
+        self.assertIn("do not assume direct reports", prompt)
+        self.assertIn("Do not penalize a fresher", prompt)
 
     def test_resume_match_prediction_validates_output_and_grounded_bullets(self):
         response = {

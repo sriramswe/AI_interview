@@ -3085,6 +3085,7 @@ async def submit_answer(
         round_name=session.interview_round,
         company=session.target_company,
         company_intel=company_intel,
+        candidate_context=_session_candidate_context(session),
         round_criteria=[
             *round_config["evaluation_criteria"],
             *(
@@ -3925,6 +3926,7 @@ async def retry_interview_answer(
             round_name=question_round,
             company=session.target_company,
             company_intel=company_intel,
+            candidate_context=_session_candidate_context(session),
             round_criteria=round_config["evaluation_criteria"],
         )
     )
