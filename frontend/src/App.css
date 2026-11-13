@@ -3553,6 +3553,71 @@ input[aria-invalid="true"] {
   font-size: 12px;
 }
 
+.learning-roadmap {
+  display: grid;
+  gap: 16px;
+  margin: 20px 0;
+}
+
+.learning-roadmap-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.learning-roadmap-heading h3 {
+  margin: 4px 0 0;
+  color: var(--text-h);
+}
+
+.learning-roadmap-days {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
+}
+
+.learning-roadmap-days article,
+.learning-roadmap-summary {
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--social-bg);
+  color: var(--text-h);
+}
+
+.learning-roadmap-days article h4 {
+  margin: 4px 0 12px;
+  color: var(--text-h);
+  line-height: 1.4;
+}
+
+.learning-roadmap-days article ul,
+.learning-roadmap-summary ul {
+  margin: 8px 0 0;
+  padding-left: 20px;
+  line-height: 1.55;
+}
+
+.learning-roadmap-days article li,
+.learning-roadmap-summary li {
+  margin: 5px 0;
+}
+
+.learning-roadmap-prompt {
+  padding: 12px;
+  margin-top: 14px;
+  border-left: 3px solid var(--accent);
+  border-radius: 6px;
+  background: var(--accent-bg);
+}
+
+.learning-roadmap-prompt p {
+  margin: 6px 0 0;
+  line-height: 1.55;
+}
+
 @media (max-width: 680px) {
   .coding-mode-switch,
   .coding-heading,
@@ -3563,6 +3628,10 @@ input[aria-invalid="true"] {
   }
 
   .coding-score-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .learning-roadmap-days {
     grid-template-columns: 1fr;
   }
 }

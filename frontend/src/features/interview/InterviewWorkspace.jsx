@@ -3,7 +3,7 @@ import { Download, Loader2, Mic, MicOff, Video } from 'lucide-react'
 import { useInterviewApp } from '../../context/useInterviewApp'
 import { getApiError } from '../../services/apiClient'
 import { fetchInterviewHistoryDetail } from '../../services/interviewService'
-import { downloadInterviewReport } from './interviewReport'
+import { downloadInterviewReport, printLearningRoadmapAsPdf } from './interviewReport'
 import AnswerReview from './AnswerReview'
 import CodingSimulation from './CodingSimulation'
 import GoogleMeetInterview from './GoogleMeetInterview'
@@ -35,7 +35,11 @@ export default function InterviewWorkspace() {
   const [reportLoading, setReportLoading] = useState(false)
   const [reportError, setReportError] = useState('')
   const [roadmapLoading, setRoadmapLoading] = useState(false)
+  const [roadmapResult, setRoadmapResult] = useState(null)
   const roadmapControllerRef = useRef(null)
+  const learningRoadmap = roadmapResult?.sessionId === interview.id
+    ? roadmapResult.data
+    : null
 
   useEffect(() => () => roadmapControllerRef.current?.abort(), [])
 
@@ -134,7 +138,9 @@ export default function InterviewWorkspace() {
     const controller = new AbortController()
     roadmapControllerRef.current = controller
     setRoadmapLoading(true)
-    await handleGenerateRoadmap({ signal: controller.signal })
+    setReportError('')
+    const data = await handleGenerateRoadmap({ signal: controller.signal })
+    if (data) setRoadmapResult({ sessionId: interview.id, data })
     if (roadmapControllerRef.current === controller) {
       roadmapControllerRef.current = null
       setRoadmapLoading(false)
@@ -142,6 +148,17 @@ export default function InterviewWorkspace() {
   }
 
   const cancelRoadmap = () => roadmapControllerRef.current?.abort()
+
+  const handlePrintRoadmap = () => {
+    try {
+      printLearningRoadmapAsPdf(learningRoadmap, {
+        role: interview.role || interview.role_category,
+        company: interview.target_company,
+      })
+    } catch (error) {
+      setReportError(error.message)
+    }
+  }
 
   // If user is in Google Meet mode and interview is not yet finished, show the Google Meet interface
   if (viewMode === 'meet' && !interview.finished) {
@@ -439,7 +456,7 @@ export default function InterviewWorkspace() {
               <ul>{interview.master_report.areas_to_improve.map((item) => <li key={item}>{item}</li>)}</ul>
             </div>
           )}
-          {subscription?.plan === 'elite' && (
+          {subscription?.plan === 'elite' && !learningRoadmap && (
             roadmapLoading ? (
               <button className="button secondary" type="button" onClick={cancelRoadmap}>
                 <Loader2 aria-hidden="true" className="spin-icon" size={16} />
@@ -450,6 +467,46 @@ export default function InterviewWorkspace() {
                 Generate 7-day learning roadmap
               </button>
             )
+          )}
+          {learningRoadmap && (
+            <section aria-labelledby="learning-roadmap-title" className="learning-roadmap">
+              <div className="learning-roadmap-heading">
+                <div>
+                  <p className="eyebrow">Personalized interview preparation</p>
+                  <h3 id="learning-roadmap-title">Your 7-day learning roadmap</h3>
+                </div>
+                <button className="button secondary" onClick={handlePrintRoadmap} type="button">
+                  <Download aria-hidden="true" size={16} />
+                  Print / Save as PDF
+                </button>
+              </div>
+              <div className="learning-roadmap-days">
+                {learningRoadmap.days.map((day) => (
+                  <article key={day.day}>
+                    <p className="eyebrow">Day {day.day}</p>
+                    <h4>{day.focus}</h4>
+                    <strong>Learning activities</strong>
+                    <ul>{day.activities.map((activity) => <li key={activity}>{activity}</li>)}</ul>
+                    <div className="learning-roadmap-prompt">
+                      <strong>Practice prompt</strong>
+                      <p>{day.practice_prompt}</p>
+                    </div>
+                  </article>
+                ))}
+              </div>
+              {learningRoadmap.failed_topics?.length > 0 && (
+                <div className="learning-roadmap-summary">
+                  <strong>Focus areas</strong>
+                  <ul>{learningRoadmap.failed_topics.map((topic) => <li key={topic}>{topic}</li>)}</ul>
+                </div>
+              )}
+              {learningRoadmap.resource_recommendations?.length > 0 && (
+                <div className="learning-roadmap-summary">
+                  <strong>Recommended resources</strong>
+                  <ul>{learningRoadmap.resource_recommendations.map((resource) => <li key={resource}>{resource}</li>)}</ul>
+                </div>
+              )}
+            </section>
           )}
           <button
             className="button secondary"

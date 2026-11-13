@@ -551,10 +551,12 @@ export function InterviewAppProvider({ children }) {
         interviewId: interview.id,
         signal,
       })
-      setPaymentStatus(JSON.stringify(data, null, 2))
+      setPaymentStatus('')
+      return data
     } catch (error) {
-      if (signal?.aborted || error.code === 'ERR_CANCELED') return
+      if (signal?.aborted || error.code === 'ERR_CANCELED') return null
       setPaymentStatus(getApiError(error, 'Could not create a learning roadmap.'))
+      return null
     }
   }
 
