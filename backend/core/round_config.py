@@ -370,6 +370,8 @@ def get_candidate_experience_level(
     years_of_experience: float | None = None,
     current_role: str | None = None,
 ) -> str:
+    if employment_status in {"school_student", "college_student"}:
+        return "fresher"
     if (
         (years_of_experience is not None and years_of_experience > 0)
         or employment_status == "employed"
@@ -379,11 +381,7 @@ def get_candidate_experience_level(
         )
     ):
         return "experienced"
-    if employment_status in {
-        "school_student",
-        "college_student",
-        "recent_graduate",
-    }:
+    if employment_status == "recent_graduate":
         return "fresher"
     return "general"
 

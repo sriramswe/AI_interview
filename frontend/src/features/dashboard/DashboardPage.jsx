@@ -261,6 +261,7 @@ function InterviewSetupCard() {
   const [customGeographySelected, setCustomGeographySelected] = useState(false)
   const [stepError, setStepError] = useState('')
   const [resumeChoice, setResumeChoice] = useState('')
+  const [roundsLoading, setRoundsLoading] = useState(false)
   const {
     busy,
     company,
@@ -335,12 +336,25 @@ function InterviewSetupCard() {
     setStepError('')
   }
 
-  const continueFromStep = () => {
+  const loadRoundPreview = async () => {
+    setRoundsLoading(true)
+    setStepError('')
+    const loaded = await handleLoadRounds()
+    setRoundsLoading(false)
+    if (!loaded) {
+      setStepError('Could not load your interview plan. Please try again.')
+      return false
+    }
+    return true
+  }
+
+  const continueFromStep = async () => {
     if (currentStep === 1 && !role.trim()) {
       setStepError('Enter your target role to continue.')
       return
     }
     if (currentStep === 3 && !resumeChoice && !resumeFile) setResumeChoice('skip')
+    if (currentStep === 3 && !(await loadRoundPreview())) return
     setStepError('')
     setCurrentStep((step) => Math.min(4, step + 1))
   }
@@ -590,8 +604,13 @@ function InterviewSetupCard() {
               )}
             </div>
             <div className="setup-round-preview">
-              <button className="button secondary" type="button" onClick={handleLoadRounds}>
-                Preview likely interview rounds
+              <button
+                className="button secondary"
+                disabled={roundsLoading}
+                type="button"
+                onClick={loadRoundPreview}
+              >
+                {roundsLoading ? 'Loading interview rounds…' : 'Preview likely interview rounds'}
               </button>
               {rounds.length > 0 && (
                 <ol className="round-list">
@@ -680,8 +699,24 @@ function InterviewSetupCard() {
               </div>
               {rounds.length > 0 && (
                 <div>
-                  <dt>Interview rounds</dt>
-                  <dd>{rounds.map((round) => round.name).join(' → ')}</dd>
+                  <dt>Your interview plan</dt>
+                  <dd>
+                    <p className="muted">
+                      {rounds[0].candidate_level === 'fresher'
+                        ? 'Tailored for a student or fresher profile.'
+                        : rounds[0].candidate_level === 'experienced'
+                          ? 'Tailored for your professional experience.'
+                          : 'No experience profile found; showing the standard role-based rounds.'}
+                    </p>
+                    <ol className="round-list">
+                      {rounds.map((round, index) => (
+                        <li key={round.name}>
+                          <span>{index + 1}. {round.name}</span>
+                          <small>{round.evaluation_criteria?.[0]}</small>
+                        </li>
+                      ))}
+                    </ol>
+                  </dd>
                 </div>
               )}
             </dl>
@@ -777,8 +812,15 @@ function InterviewSetupCard() {
           )}
           {currentStep < 4
             ? (
-              <button className="button primary setup-next-button" onClick={continueFromStep} type="button">
-                {currentStep === 3 && !resumeFile ? 'Continue without resume' : 'Continue'}
+              <button
+                className="button primary setup-next-button"
+                disabled={roundsLoading}
+                onClick={continueFromStep}
+                type="button"
+              >
+                {roundsLoading
+                  ? 'Loading your interview plan…'
+                  : currentStep === 3 && !resumeFile ? 'Continue without resume' : 'Continue'}
                 <ArrowRight aria-hidden="true" size={16} />
               </button>
             )
@@ -1009,10 +1051,3 @@ export default function DashboardPage() {
         <aside className="side-stack">
           <BillingPanel />
           <SchedulePanel />
-        </aside>
-      </div>
-      <ProgressTracker token={token} />
-      <footer className="footer-note">Your camera and microphone are accessed only after you choose to enable them.</footer>
-    </main>
-  )
-}

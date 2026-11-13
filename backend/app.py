@@ -27,7 +27,7 @@ from auth import auth_utils
 from core import database, models, schemas
 from core.behavioral_analysis import analyze_speaking_metrics
 from core.round_config import (
-    get_first_round,
+    get_candidate_experience_level,
     get_next_round,
     get_round_config,
     get_rounds_for_role,
@@ -306,16 +306,41 @@ def _candidate_profile_context(profile: models.CandidateProfile | None) -> str |
     )
 
 
-def _session_candidate_context(session: models.InterviewSession) -> str | None:
-    profile = next(
+def _profile_experience_level(
+    profile: models.CandidateProfile | dict | None,
+) -> str:
+    if isinstance(profile, dict):
+        employment_status = profile.get("employment_status")
+        years_of_experience = profile.get("years_of_experience")
+        current_role = profile.get("current_role")
+    elif profile is not None:
+        employment_status = profile.employment_status
+        years_of_experience = profile.years_of_experience
+        current_role = profile.current_role
+    else:
+        employment_status = years_of_experience = current_role = None
+    return get_candidate_experience_level(
+        employment_status, years_of_experience, current_role
+    )
+
+
+def _session_candidate_profile(
+    session: models.InterviewSession,
+) -> dict | None:
+    return next(
         (
             item.get("candidate_profile")
             for item in session.transcript or []
-            if item.get("role") == "system"
+            if isinstance(item, dict)
+            and item.get("role") == "system"
             and isinstance(item.get("candidate_profile"), dict)
         ),
         None,
     )
+
+
+def _session_candidate_context(session: models.InterviewSession) -> str | None:
+    profile = _session_candidate_profile(session)
     if not profile:
         return None
     labels = {
@@ -341,6 +366,37 @@ def _session_candidate_context(session: models.InterviewSession) -> str | None:
             ),
         )
         if value
+    )
+
+
+def _session_round_plan(session: models.InterviewSession) -> list[str]:
+    persisted_plan = next(
+        (
+            item.get("planned_rounds")
+            for item in session.transcript or []
+            if isinstance(item, dict)
+            and item.get("role") == "system"
+            and isinstance(item.get("planned_rounds"), list)
+            and all(isinstance(round_name, str) for round_name in item["planned_rounds"])
+        ),
+        None,
+    )
+    if persisted_plan:
+        return persisted_plan
+
+    company_intel = _session_company_intelligence(session)
+    company_industry = (
+        company_intel.get("industry") if isinstance(company_intel, dict) else None
+    )
+    return list(
+        get_rounds_for_role(
+            session.role_category,
+            session.job_description,
+            company_industry,
+            candidate_level=_profile_experience_level(
+                _session_candidate_profile(session)
+            ),
+        )
     )
 
 
@@ -2032,11 +2088,21 @@ def get_interview_rounds(
     role: str,
     job_description: str | None = None,
     company_industry: str | None = None,
-    _: models.User = Depends(auth_utils.get_current_user),
+    current_user: models.User = Depends(auth_utils.get_current_user),
 ):
-    rounds = get_rounds_for_role(role, job_description, company_industry)
+    candidate_level = _profile_experience_level(current_user.candidate_profile)
+    rounds = get_rounds_for_role(
+        role,
+        job_description,
+        company_industry,
+        candidate_level=candidate_level,
+    )
     return [
-        {"name": name, **get_round_config(name)}
+        {
+            "name": name,
+            "candidate_level": candidate_level,
+            **get_round_config(name),
+        }
         for name in rounds
     ]
 
@@ -2287,9 +2353,16 @@ async def _create_interview(
     company_industry = (
         company_intel.get("industry") if isinstance(company_intel, dict) else None
     )
-    interview_round = get_first_round(
-        role_category, difficulty_level, job_description, company_industry
+    candidate_level = _profile_experience_level(candidate_profile)
+    planned_rounds = list(
+        get_rounds_for_role(
+            role_category,
+            job_description,
+            company_industry,
+            candidate_level=candidate_level,
+        )
     )
+    interview_round = planned_rounds[0]
     try:
         category_plan = shuffled_category_plan(
             resolve_technical_categories(
@@ -2307,6 +2380,8 @@ async def _create_interview(
     persisted_context = {
         "technical_category_plan": category_plan,
         "questions_per_round": questions_per_round,
+        "candidate_level": candidate_level,
+        "planned_rounds": planned_rounds,
     }
     if profile_context:
         persisted_context["candidate_profile"] = _candidate_profile_payload(candidate_profile)
@@ -2826,11 +2901,7 @@ async def submit_answer(
                 "sub_role": session.sub_role,
                 "target_company": session.target_company,
                 "rounds_completed": session.rounds_completed,
-                "required_rounds": list(get_rounds_for_role(
-                    session.role_category,
-                    session.job_description,
-                    company_intel.get("industry") if isinstance(company_intel, dict) else None,
-                )),
+                "required_rounds": _session_round_plan(session),
             })
             master_report = _apply_feedback_tier(
                 _validate_hiring_report(_decode_model_json(master_report_raw)),
@@ -3300,6 +3371,7 @@ async def submit_answer(
         session.difficulty_level,
         session.job_description,
         company_intel.get("industry") if isinstance(company_intel, dict) else None,
+        planned_rounds=_session_round_plan(session),
     )
     completed_rounds = [*session.rounds_completed, session.interview_round]
     
@@ -3385,11 +3457,7 @@ async def submit_answer(
             "sub_role": session.sub_role,
             "target_company": session.target_company,
             "rounds_completed": session.rounds_completed,
-            "required_rounds": list(get_rounds_for_role(
-                session.role_category,
-                session.job_description,
-                company_intel.get("industry") if isinstance(company_intel, dict) else None,
-            )),
+            "required_rounds": _session_round_plan(session),
         })
         master_report = _apply_feedback_tier(
             _validate_hiring_report(_decode_model_json(master_report_raw)),

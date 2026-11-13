@@ -278,8 +278,11 @@ export function InterviewAppProvider({ children }) {
     try {
       const data = await fetchInterviewRounds({ token, role, jobDescription })
       setRounds(data)
+      return true
     } catch (error) {
+      setRounds([])
       setPaymentStatus(getApiError(error, 'Could not load interview rounds.'))
+      return false
     }
   }
 
