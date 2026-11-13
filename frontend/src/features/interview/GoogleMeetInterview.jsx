@@ -72,6 +72,9 @@ export default function GoogleMeetInterview({
   const pendingAnswer = pendingAnswerOverride?.interviewId === interview.id
     ? pendingAnswerOverride.value
     : (interview.pending_answer || '')
+  const canDeletePendingAnswer = Boolean(
+    pendingAnswer && interview.pending_answer === pendingAnswer,
+  )
 
   const questionTotal = interview.questions_per_round || 10
   const questionsAnswered = interview.questions_asked ?? 0
@@ -596,17 +599,21 @@ export default function GoogleMeetInterview({
                   {pendingAnswer && (
                     <div className="meet-answer-retry-hint" role="status">
                       <span>
-                        Your previous answer is saved and waiting for evaluation. Retry it, or edit/replace it and submit again.
+                        {canDeletePendingAnswer
+                          ? 'Your previous answer is saved and waiting for evaluation. Retry it, or edit/replace it and submit again.'
+                          : 'Your previous answer was saved, but the request did not complete. Retry it, or edit/replace it and submit again.'}
                       </span>
-                      <button
-                        className="meet-answer-discard-btn"
-                        disabled={busy || discardingPendingAnswer}
-                        onClick={handleDiscardSavedAnswer}
-                        type="button"
-                      >
-                        <Trash2 aria-hidden="true" size={14} />
-                        {discardingPendingAnswer ? 'Deleting…' : 'Delete saved answer'}
-                      </button>
+                      {canDeletePendingAnswer && (
+                        <button
+                          className="meet-answer-discard-btn"
+                          disabled={busy || discardingPendingAnswer}
+                          onClick={handleDiscardSavedAnswer}
+                          type="button"
+                        >
+                          <Trash2 aria-hidden="true" size={14} />
+                          {discardingPendingAnswer ? 'Deleting…' : 'Delete saved answer'}
+                        </button>
+                      )}
                     </div>
                   )}
                   <form

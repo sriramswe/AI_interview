@@ -412,7 +412,33 @@ export function InterviewAppProvider({ children }) {
       }))
       return true
     } catch (error) {
-      setPaymentStatus(getApiError(error, 'Could not submit your answer.'))
+      const submitError = getApiError(error, 'Could not submit your answer.')
+      setPaymentStatus(submitError)
+      try {
+        const saved = await fetchInterviewHistoryDetail({
+          token,
+          interviewId: interview.id,
+        })
+        const transcript = Array.isArray(saved.transcript) ? saved.transcript : []
+        const lastTurn = transcript[transcript.length - 1]
+        const pendingAnswer = (
+          lastTurn?.role === 'user'
+          && lastTurn.evaluation_pending === true
+          && typeof lastTurn.content === 'string'
+        ) ? lastTurn.content : null
+        setInterview((current) => (
+          current?.id === interview.id
+            ? { ...current, pending_answer: pendingAnswer }
+            : current
+        ))
+      } catch (historyError) {
+        setPaymentStatus(
+          `${submitError} ${getApiError(
+            historyError,
+            'Could not verify whether the answer is still awaiting evaluation.',
+          )}`,
+        )
+      }
       return false
     } finally {
       answerSubmissionInProgress.current = false
