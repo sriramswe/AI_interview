@@ -1664,6 +1664,17 @@ class ProjectChatAdminTests(unittest.TestCase):
         self.assertEqual(saved_final_answer["master_report"]["final_verdict"], "HIRE")
         self.assertEqual(history.json()["selection_status"], "selected")
         self.assertEqual(history.json()["selection_score"], 8.0)
+        history_list = self.client.get(
+            "/api/interviews/history",
+            headers=self.user_headers,
+        )
+        self.assertEqual(history_list.status_code, 200, history_list.text)
+        saved_session = next(
+            item
+            for item in history_list.json()
+            if item["session_id"] == interview_id
+        )
+        self.assertEqual(saved_session["selection_status"], "selected")
         self.assertEqual(
             saved_final_answer["report_provider_status"],
             "OpenRouter (test/reporter)",
