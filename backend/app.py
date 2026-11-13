@@ -241,6 +241,43 @@ def _decode_model_json(raw: str) -> dict:
     )
 
 
+def _decode_learning_roadmap(raw: str) -> tuple[dict, list[str]]:
+    try:
+        roadmap = _decode_model_json(raw)
+    except HTTPException as error:
+        if error.status_code != status.HTTP_502_BAD_GATEWAY:
+            raise
+        return {}, ["valid_json_object"]
+
+    days = roadmap.get("days")
+    invalid_fields = []
+    if not isinstance(days, list) or len(days) != 7:
+        invalid_fields.append("days")
+    elif any(
+        not isinstance(day, dict)
+        or isinstance(day.get("day"), bool)
+        or day.get("day") != index
+        or not isinstance(day.get("focus"), str)
+        or not day["focus"].strip()
+        or not isinstance(day.get("activities"), list)
+        or any(
+            not isinstance(activity, str) or not activity.strip()
+            for activity in day["activities"]
+        )
+        or not isinstance(day.get("practice_prompt"), str)
+        or not day["practice_prompt"].strip()
+        for index, day in enumerate(days, start=1)
+    ):
+        invalid_fields.append("days[].day/focus/activities/practice_prompt")
+    for field in ("failed_topics", "resource_recommendations"):
+        items = roadmap.get(field)
+        if not isinstance(items, list) or any(
+            not isinstance(item, str) or not item.strip() for item in items
+        ):
+            invalid_fields.append(field)
+    return roadmap, invalid_fields
+
+
 def _get_owned_interview_session(
     db: Session, session_id: int, current_user: models.User
 ) -> models.InterviewSession:
@@ -4196,38 +4233,24 @@ async def generate_interview_learning_roadmap(
             for answer in answers
         ],
     }
-    roadmap = _decode_model_json(
-        await gemini_service.generate_learning_roadmap(session_data)
-    )
-    days = roadmap.get("days")
-    invalid_fields = []
-    if not isinstance(days, list) or len(days) != 7:
-        invalid_fields.append("days")
-    elif any(
-        not isinstance(day, dict)
-        or isinstance(day.get("day"), bool)
-        or day.get("day") != index
-        or not isinstance(day.get("focus"), str)
-        or not day["focus"].strip()
-        or not isinstance(day.get("activities"), list)
-        or any(
-            not isinstance(activity, str) or not activity.strip()
-            for activity in day["activities"]
-        )
-        or not isinstance(day.get("practice_prompt"), str)
-        or not day["practice_prompt"].strip()
-        for index, day in enumerate(days, start=1)
-    ):
-        invalid_fields.append("days[].day/focus/activities/practice_prompt")
-    for field in ("failed_topics", "resource_recommendations"):
-        items = roadmap.get(field)
-        if not isinstance(items, list) or any(
-            not isinstance(item, str) or not item.strip() for item in items
-        ):
-            invalid_fields.append(field)
+    raw_response = await gemini_service.generate_learning_roadmap(session_data)
+    roadmap, invalid_fields = _decode_learning_roadmap(raw_response)
     if invalid_fields:
         logger.warning(
             "AI service returned an invalid learning roadmap schema "
+            "(session_id=%s, invalid_fields=%s); attempting one repair",
+            session.id,
+            ", ".join(invalid_fields),
+        )
+        raw_response = await gemini_service.repair_learning_roadmap(
+            session_data=session_data,
+            invalid_response=raw_response,
+            validation_errors=invalid_fields,
+        )
+        roadmap, invalid_fields = _decode_learning_roadmap(raw_response)
+    if invalid_fields:
+        logger.warning(
+            "AI learning roadmap repair still has an invalid schema "
             "(session_id=%s, invalid_fields=%s)",
             session.id,
             ", ".join(invalid_fields),

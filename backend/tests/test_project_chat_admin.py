@@ -117,6 +117,79 @@ class ProjectChatAdminTests(unittest.TestCase):
             origin,
         )
 
+    def test_invalid_learning_roadmap_is_repaired_once(self):
+        now = datetime.now(timezone.utc)
+        valid_roadmap = {
+            "days": [
+                {
+                    "day": day,
+                    "focus": f"Focus {day}",
+                    "activities": [f"Practice {day}"],
+                    "practice_prompt": f"Prompt {day}",
+                }
+                for day in range(1, 8)
+            ],
+            "failed_topics": ["API design"],
+            "resource_recommendations": ["REST API documentation"],
+        }
+        invalid_response = json.dumps({"days": []})
+        with database.SessionLocal() as db:
+            user = db.scalar(select(User).where(User.email.like("user-%")))
+            session = InterviewSession(
+                user_id=user.id,
+                role_category="Software Engineer",
+                sub_role="Backend",
+            )
+            db.add(session)
+            db.flush()
+            db.add_all(
+                [
+                    Subscription(
+                        user_id=user.id,
+                        plan="elite",
+                        status="active",
+                        started_at=now,
+                        expires_at=now + timedelta(days=30),
+                    ),
+                    UserAnswer(
+                        session_id=session.id,
+                        question_text="How would you design a scalable API?",
+                        user_answer="I would add pagination and caching.",
+                        final_score=6,
+                    ),
+                ]
+            )
+            interview_id = session.id
+            db.commit()
+
+        with (
+            patch.object(
+                backend_app.gemini_service,
+                "generate_learning_roadmap",
+                new_callable=AsyncMock,
+                return_value=invalid_response,
+            ),
+            patch.object(
+                backend_app.gemini_service,
+                "repair_learning_roadmap",
+                new_callable=AsyncMock,
+                return_value=json.dumps(valid_roadmap),
+            ) as repair,
+        ):
+            response = self.client.post(
+                f"/api/interviews/history/{interview_id}/learning-roadmap",
+                headers=self.user_headers,
+            )
+
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(len(response.json()["days"]), 7)
+        self.assertEqual(response.json()["days"][0]["day"], 1)
+        self.assertEqual(repair.await_count, 1)
+        self.assertEqual(
+            repair.await_args.kwargs["validation_errors"],
+            ["days"],
+        )
+
     def test_round_preview_uses_the_authenticated_candidate_profile(self):
         response = self.client.get(
             "/api/interviews/rounds",

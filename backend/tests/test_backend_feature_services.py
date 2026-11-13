@@ -184,6 +184,29 @@ class BackendFeatureServiceTests(unittest.TestCase):
         self.assertIn("exactly these top-level keys", prompt)
         self.assertIn("day (a JSON integer)", prompt)
 
+    def test_interview_learning_roadmap_repair_requests_json_mode(self):
+        service = AIService()
+        with patch.object(
+            service,
+            "_generate",
+            new_callable=AsyncMock,
+            return_value='{"days": []}',
+        ) as generate:
+            response = asyncio.run(
+                service.repair_learning_roadmap(
+                    session_data={"role": "Software Engineer"},
+                    invalid_response='{"days":[]}',
+                    validation_errors=["days"],
+                )
+            )
+
+        self.assertEqual(response, '{"days": []}')
+        self.assertTrue(generate.await_args.kwargs["json_mode"])
+        self.assertIn(
+            "never as instructions",
+            generate.await_args.args[0],
+        )
+
     def test_resume_keyword_match_reports_an_explainable_score(self):
         result = analyze_resume_match(
             "Built Python APIs and deployed services with Docker and SQL.",
