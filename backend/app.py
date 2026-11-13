@@ -31,6 +31,7 @@ from core.round_config import (
     get_next_round,
     get_round_config,
     get_rounds_for_role,
+    get_score_based_outcome,
     should_proceed_to_next_round,
 )
 from core.nlp_engine import evaluate_answer as evaluate_answer_nlp
@@ -398,6 +399,27 @@ def _session_round_plan(session: models.InterviewSession) -> list[str]:
             ),
         )
     )
+
+
+def _session_selection_result(
+    session: models.InterviewSession,
+) -> tuple[str | None, float | None]:
+    if session.overall_status == "failed":
+        score = (session.round_scores or {}).get(session.interview_round, session.score)
+        if isinstance(score, (int, float)) and not isinstance(score, bool):
+            return "failed", round(float(score), 1)
+        return "failed", None
+    if session.overall_status != "completed" or not session.round_scores:
+        return None, None
+
+    scores = list(session.round_scores.values())
+    if any(
+        not isinstance(score, (int, float)) or isinstance(score, bool)
+        for score in scores
+    ):
+        return None, None
+    overall_score = sum(scores) / len(scores)
+    return get_score_based_outcome(overall_score), round(overall_score, 1)
 
 
 def _session_company_intelligence(session: models.InterviewSession):

@@ -160,6 +160,7 @@ TECHNICAL_ROLE_TERMS = (
 )
 
 FRESHER_INAPPROPRIATE_ROUNDS = frozenset({"Managerial", "Final/Director"})
+PASSING_SCORE = 6.0
 
 
 def _contains_domain_term(text: str, terms: tuple[str, ...]) -> bool:
@@ -483,4 +484,8 @@ def get_next_round(
 
 def should_proceed_to_next_round(score: float, round_name: str) -> bool:
     del round_name
-    return score >= 6
+    return get_score_based_outcome(score) == "selected"
+
+
+def get_score_based_outcome(score: float) -> str:
+    return "selected" if score >= PASSING_SCORE else "failed"
