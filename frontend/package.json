@@ -12,14 +12,15 @@
   "dependencies": {
     "@monaco-editor/react": "^4.7.0",
     "axios": "^1.21.0",
+    "jspdf": "^4.2.1",
     "lucide-react": "^1.63.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "react-router-dom": "^7.18.5"
   },
   "devDependencies": {
-    "@tailwindcss/vite": "^4.3.3",
     "@eslint/js": "^10.0.1",
+    "@tailwindcss/vite": "^4.3.3",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.2",
