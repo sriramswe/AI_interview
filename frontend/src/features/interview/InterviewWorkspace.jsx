@@ -367,10 +367,8 @@ export default function InterviewWorkspace() {
         <div className="feedback-card">
           <p className="eyebrow">
             {interview.master_report_pending
-              ? `Score outcome: ${interview.selection_status || 'completed'} · scorecard pending`
-              : interview.overall_status === 'failed'
-                ? 'Score outcome · Practice simulation only'
-                : 'Score outcome · Practice simulation only'}
+              ? `Score outcome: ${interview.selection_status === 'selected' ? 'Selected' : 'Failed'} · scorecard pending`
+              : 'Score-based result · Practice simulation only'}
           </p>
           <h3 className="hiring-verdict">
             {interview.master_report_pending
@@ -379,6 +377,8 @@ export default function InterviewWorkspace() {
                 : 'Interview rounds completed'
               : interview.overall_status === 'failed'
                 ? `Failed${interview.failed_round ? ` · ${interview.failed_round}` : ''}`
+                : interview.selection_status === 'failed'
+                  ? 'Failed'
                 : interview.selection_status === 'selected'
                   ? 'Selected'
                   : interview.master_report?.final_verdict || 'Interview complete'}
